@@ -4,7 +4,6 @@ import boto3
 import logging
 import os
 import json
-import requests
 
 # Initialise logging
 logger = logging.getLogger(__name__)
@@ -45,9 +44,8 @@ def handler(event, context):
 
 
 def produce_kafka_messages(event, args):
-    if 'AWS_PROFILE' in os.environ:
-        boto3.setup_default_session(profile_name=args.aws_profile,
-                                    region_name=args.aws_region)
+    boto3.setup_default_session(profile_name=args.aws_profile,
+                                region_name=args.aws_region)
 
     if logger.isEnabledFor(logging.DEBUG):
         # Log everything from boto3
@@ -55,6 +53,43 @@ def produce_kafka_messages(event, args):
         logger.debug(f"Using boto3 {boto3.__version__}")
 
     logger.debug(event)
+
+    message = json.loads(event['Records'][0]['Sns']['Message'])
+    logger.debug(message)
+
+    # {
+    #     "job_id": "aws-ingest_upload-fixture-data-dev_13",
+    #     "bucket": "abcdefg",
+    #     "fixture_data": [
+    #         "test-messages/functional_a",
+    #         "test-messages/functional_b"
+    #     ]
+    # }
+
+    # Update dynamo db record
+    update_job_status(message['job_id'], "RUNNING")
+
+    # Process each fixture data dir
+
+    # Update status on dynamo db record
+    update_job_status(message['job_id'], "COMPLETE")
+
+
+def update_job_status(job_id, job_status):
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table('JobStatus')
+
+    response = table.update_item(
+        Key={
+            'JobId': job_id,
+        },
+        UpdateExpression="set JobStatus = :s",
+        ExpressionAttributeValues={
+            ':s': job_status
+        },
+        ReturnValues="UPDATED_NEW"
+    )
+    return response
 
 
 if __name__ == "__main__":
