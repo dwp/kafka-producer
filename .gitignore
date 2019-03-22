@@ -106,3 +106,6 @@ venv.bak/
 # Terraform
 ci/.terraform/
 ci/terraform*
+
+# test event payload
+event.json
