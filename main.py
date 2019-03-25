@@ -30,8 +30,8 @@ def get_parameters():
     parser.add_argument("--aws-profile", default="default")
     parser.add_argument("--aws-region", default="eu-west-2")
     parser.add_argument("--kafka-bootstrap-servers")
-    parser.add_argument("--s3-bucket")
-    parser.add_argument("--s3-bucket-prefix")
+    parser.add_argument("--ssl-broker", default="True")
+    parser.add_argument("--kafka-topic")
 
     _args = parser.parse_args()
 
@@ -45,55 +45,35 @@ def get_parameters():
     if "KAFKA_BOOTSTRAP_SERVERS" in os.environ:
         _args.kafka_bootstrap_servers = os.environ["KAFKA_BOOTSTRAP_SERVERS"]
 
-    if "S3_BUCKET" in os.environ:
-        _args.s3_bucket = os.environ["S3_BUCKET"]
+    if "SSL_BROKER" in os.environ:
+        _args.ssl_broker = os.environ["SSL_BROKER"]
 
-    if "S3_BUCKET_PREFIX" in os.environ:
-        _args.s3_bucket_prefix = os.environ["S3_BUCKET_PREFIX"]
+    if "KAFKA_TOPIC" in os.environ:
+        _args.kafka_topic = os.environ["KAFKA_TOPIC"]
 
-    missing_args = False
-    if not _args.kafka_bootstrap_servers:
-        missing_args = True
-        logger.error(
-            "Missing required argument: --kafka_bootstrap_servers (KAFKA_BOOTSTRAP_SERVERS)"
-        )
-
-    if not _args.s3_bucket:
-        missing_args = True
-        logger.error("Missing required argument: --s3-bucket (S3_BUCKET)")
-
-    if not _args.s3_bucket_prefix:
-        missing_args = True
-        logger.error("Missing required argument: --s3-bucket-prefix (S3_BUCKET_PREFIX)")
-
+    required_args = [
+        "kafka_bootstrap_servers",
+        "ssl_broker",
+        "kafka_topic",
+    ]
+    missing_args = []
+    for required_message_key in required_args:
+        if required_message_key not in _args:
+            missing_args.append(required_message_key)
     if missing_args:
-        raise argparse.ArgumentError(None, "Missing required argument(s)")
+        raise argparse.ArgumentError(None, "ArgumentError: The following required arguments are missing: {}"
+                                     .format(", ".join(missing_args)))
+
+    # Convert any arguments from strings
+    true_stings = ["True", "true", "TRUE", "1"]
+    _args.ssl_broker = True if _args.ssl_broker in true_stings else False
 
     return _args
 
 
 def handler(event, context):
-    try:
-        args = get_parameters()
-    except argparse.ArgumentError as e:
-        raise
+    args = get_parameters()
 
-    try:
-        produce_kafka_messages(event, args)
-    except KeyError as key_name:
-        logger.error(f"Key: {key_name} is required in payload")
-
-
-def get_s3_keys(bucket, prefix):
-    s3_paginator = boto3.client("s3").get_paginator("list_objects_v2")
-
-    logger.debug(f"Processing prefix: {prefix}")
-    for page in s3_paginator.paginate(Bucket=bucket, Prefix=prefix):
-        for content in page.get("Contents", ()):
-            yield content["Key"]
-
-
-def produce_kafka_messages(event, args):
     boto3.setup_default_session(
         profile_name=args.aws_profile, region_name=args.aws_region
     )
@@ -105,32 +85,39 @@ def produce_kafka_messages(event, args):
 
     logger.debug(event)
 
-    message = json.loads(event["Records"][0]["Sns"]["Message"])
-    logger.debug(message)
-    if "fixture_data" not in message:
-        raise KeyError("fixture_data")
-
-    # {
-    #     "job_id": "aws-ingest_upload-fixture-data-dev_13",
-    #     "bucket": "abcdefg",
-    #     "fixture_data": [
-    #         "test-messages/functional_a",
-    #         "test-messages/functional_b"
-    #     ]
-    # }
+    message = get_message(event)
 
     # Update dynamo db record
     update_job_status(message["job_id"], "RUNNING")
 
+    produce_kafka_messages(message['bucket'], message['fixture_data'], args)
+
+    # TODO: handle failure - Catch errors while producing messages and clean up (maybe only if not DEBUG). Set job status to FAILURE and update CI to handle it
+
+    # Update status on dynamo db record
+    update_job_status(message["job_id"], "SUCCESS")
+
+
+def get_s3_keys(bucket, prefix):
+    s3_paginator = boto3.client("s3").get_paginator("list_objects_v2")
+
+    logger.debug(f"Processing prefix: {prefix}")
+    for page in s3_paginator.paginate(Bucket=bucket, Prefix=prefix):
+        for content in page.get("Contents", ()):
+            yield content["Key"]
+
+
+def produce_kafka_messages(bucket, fixture_data, args):
     # Process each fixture data dir
-    producer = KafkaProducer(bootstrap_servers=args.kafka_bootstrap_servers)
+    producer = KafkaProducer(bootstrap_servers=args.kafka_bootstrap_servers,
+                             ssl_check_hostname=args.ssl_broker)
     s3_client = boto3.client("s3")
-    for prefix in message["fixture_data"]:
-        for s3_key in get_s3_keys(args.s3_bucket, prefix):
+    for prefix in fixture_data:
+        for s3_key in get_s3_keys(bucket, prefix):
             logger.debug(f"Processing key: {s3_key}")
             line_no = 0
             for line in (
-                s3_client.get_object(Bucket=args.s3_bucket, Key=s3_key)["Body"]
+                s3_client.get_object(Bucket=bucket, Key=s3_key)["Body"]
                 .read()
                 .splitlines()
             ):
@@ -139,14 +126,29 @@ def produce_kafka_messages(event, args):
                     json.loads(line)
                 except json.JSONDecodeError as e:
                     logger.error(
-                        f"line {line_no} of {key} contains invalid JSON data: {e.msg}"
+                        f"line {line_no} of {s3_key} contains invalid JSON data: {e.msg}"
                     )
                     continue
 
-                producer.send(line)
+                producer.send(args.kafka_topic, line)
 
-    # Update status on dynamo db record
-    update_job_status(message["job_id"], "COMPLETE")
+
+def get_message(event):
+    message = json.loads(event["Records"][0]["Sns"]["Message"])
+    logger.debug(message)
+    required_message_keys = [
+        "job_id",
+        "bucket",
+        "fixture_data",
+    ]
+    missing_keys = []
+    for required_message_key in required_message_keys:
+        if required_message_key not in message:
+            missing_keys.append(required_message_key)
+    if missing_keys:
+        raise KeyError("KeyError: THe following required keys are missing from payload: {}"
+                       .format(", ".join(missing_keys)))
+    return message
 
 
 def update_job_status(job_id, job_status):
