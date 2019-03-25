@@ -92,8 +92,6 @@ def handler(event, context):
 
     produce_kafka_messages(message['bucket'], message['fixture_data'], args)
 
-    # TODO: handle failure - Catch errors while producing messages and clean up (maybe only if not DEBUG). Set job status to FAILURE and update CI to handle it
-
     # Update status on dynamo db record
     update_job_status(message["job_id"], "SUCCESS")
 
@@ -124,9 +122,9 @@ def produce_kafka_messages(bucket, fixture_data, args):
                 line_no += 1
                 try:
                     json.loads(line)
-                except json.JSONDecodeError as e:
+                except json.JSONDecodeError as err:
                     logger.error(
-                        f"line {line_no} of {s3_key} contains invalid JSON data: {e.msg}"
+                        f"line {line_no} of {s3_key} contains invalid JSON data: {err.msg}"
                     )
                     continue
 
