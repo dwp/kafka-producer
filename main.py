@@ -51,18 +51,18 @@ def get_parameters():
     if "KAFKA_TOPIC" in os.environ:
         _args.kafka_topic = os.environ["KAFKA_TOPIC"]
 
-    required_args = [
-        "kafka_bootstrap_servers",
-        "ssl_broker",
-        "kafka_topic",
-    ]
+    required_args = ["kafka_bootstrap_servers", "ssl_broker", "kafka_topic"]
     missing_args = []
     for required_message_key in required_args:
         if required_message_key not in _args:
             missing_args.append(required_message_key)
     if missing_args:
-        raise argparse.ArgumentError(None, "ArgumentError: The following required arguments are missing: {}"
-                                     .format(", ".join(missing_args)))
+        raise argparse.ArgumentError(
+            None,
+            "ArgumentError: The following required arguments are missing: {}".format(
+                ", ".join(missing_args)
+            ),
+        )
 
     # Convert any arguments from strings
     true_stings = ["True", "true", "TRUE", "1"]
@@ -73,10 +73,6 @@ def get_parameters():
 
 def handler(event, context):
     args = get_parameters()
-
-    boto3.setup_default_session(
-        profile_name=args.aws_profile, region_name=args.aws_region
-    )
 
     if logger.isEnabledFor(logging.DEBUG):
         # Log everything from boto3
@@ -90,7 +86,7 @@ def handler(event, context):
     # Update dynamo db record
     update_job_status(message["job_id"], "RUNNING")
 
-    produce_kafka_messages(message['bucket'], message['fixture_data'], args)
+    produce_kafka_messages(message["bucket"], message["fixture_data"], args)
 
     # Update status on dynamo db record
     update_job_status(message["job_id"], "SUCCESS")
@@ -107,8 +103,10 @@ def get_s3_keys(bucket, prefix):
 
 def produce_kafka_messages(bucket, fixture_data, args):
     # Process each fixture data dir
-    producer = KafkaProducer(bootstrap_servers=args.kafka_bootstrap_servers,
-                             ssl_check_hostname=args.ssl_broker)
+    producer = KafkaProducer(
+        bootstrap_servers=args.kafka_bootstrap_servers,
+        ssl_check_hostname=args.ssl_broker,
+    )
     s3_client = boto3.client("s3")
     for prefix in fixture_data:
         for s3_key in get_s3_keys(bucket, prefix):
@@ -134,18 +132,17 @@ def produce_kafka_messages(bucket, fixture_data, args):
 def get_message(event):
     message = json.loads(event["Records"][0]["Sns"]["Message"])
     logger.debug(message)
-    required_message_keys = [
-        "job_id",
-        "bucket",
-        "fixture_data",
-    ]
+    required_message_keys = ["job_id", "bucket", "fixture_data"]
     missing_keys = []
     for required_message_key in required_message_keys:
         if required_message_key not in message:
             missing_keys.append(required_message_key)
     if missing_keys:
-        raise KeyError("KeyError: THe following required keys are missing from payload: {}"
-                       .format(", ".join(missing_keys)))
+        raise KeyError(
+            "KeyError: THe following required keys are missing from payload: {}".format(
+                ", ".join(missing_keys)
+            )
+        )
     return message
 
 
@@ -164,6 +161,9 @@ def update_job_status(job_id, job_status):
 
 if __name__ == "__main__":
     try:
+        boto3.setup_default_session(
+            profile_name=args.aws_profile, region_name=args.aws_region
+        )
         json_content = json.loads(open("event.json", "r").read())
         handler(json_content, None)
     except Exception as e:
