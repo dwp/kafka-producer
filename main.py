@@ -74,10 +74,6 @@ def get_parameters():
 def handler(event, context):
     args = get_parameters()
 
-    boto3.setup_default_session(
-        profile_name=args.aws_profile, region_name=args.aws_region
-    )
-
     if logger.isEnabledFor(logging.DEBUG):
         # Log everything from boto3
         boto3.set_stream_logger()
@@ -165,6 +161,9 @@ def update_job_status(job_id, job_status):
 
 if __name__ == "__main__":
     try:
+        boto3.setup_default_session(
+            profile_name=args.aws_profile, region_name=args.aws_region
+        )
         json_content = json.loads(open("event.json", "r").read())
         handler(json_content, None)
     except Exception as e:
