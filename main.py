@@ -7,7 +7,9 @@ import logging
 import os
 import sys
 
-from kafka import KafkaProducer
+from kafka import KafkaAdminClient, KafkaProducer
+from kafka.admin import NewTopic
+from kafka.errors import TopicAlreadyExistsError
 
 # Initialise logging
 logger = logging.getLogger(__name__)
@@ -31,7 +33,7 @@ def get_parameters():
     parser.add_argument("--aws-region", default="eu-west-2")
     parser.add_argument("--kafka-bootstrap-servers", default=argparse.SUPPRESS)
     parser.add_argument("--ssl-broker", default="True")
-    parser.add_argument("--kafka-topic")
+    parser.add_argument("--topic-prefix", default="")
 
     _args = parser.parse_args()
 
@@ -48,10 +50,10 @@ def get_parameters():
     if "SSL_BROKER" in os.environ:
         _args.ssl_broker = os.environ["SSL_BROKER"]
 
-    if "KAFKA_TOPIC" in os.environ:
-        _args.kafka_topic = os.environ["KAFKA_TOPIC"]
+    if "TOPIC_PREFIX" in os.environ:
+        _args.kafka_topic = os.environ["TOPIC_PREFIX"]
 
-    required_args = ["kafka_bootstrap_servers", "ssl_broker", "kafka_topic"]
+    required_args = ["kafka_bootstrap_servers", "ssl_broker"]
     missing_args = []
     for required_message_key in required_args:
         if required_message_key not in _args:
@@ -86,7 +88,9 @@ def handler(event, context):
     # Update dynamo db record
     update_job_status(message["job_id"], "RUNNING")
 
-    produce_kafka_messages(message["bucket"], message["fixture_data"], args)
+    produce_kafka_messages(
+        message["bucket"], message["job_id"], message["fixture_data"], args
+    )
 
     # Update status on dynamo db record
     update_job_status(message["job_id"], "SUCCESS")
@@ -101,9 +105,13 @@ def get_s3_keys(bucket, prefix):
             yield content["Key"]
 
 
-def produce_kafka_messages(bucket, fixture_data, args):
+def produce_kafka_messages(bucket, job_id, fixture_data, args):
     # Process each fixture data dir
     producer = KafkaProducer(
+        bootstrap_servers=args.kafka_bootstrap_servers,
+        ssl_check_hostname=args.ssl_broker,
+    )
+    kafka_admin = KafkaAdminClient(
         bootstrap_servers=args.kafka_bootstrap_servers,
         ssl_check_hostname=args.ssl_broker,
     )
@@ -119,14 +127,25 @@ def produce_kafka_messages(bucket, fixture_data, args):
             ):
                 line_no += 1
                 try:
-                    json.loads(line)
+                    data = json.loads(line)
+                    db = data["message"]["db"]
+                    collection = data["message"]["collection"]
+                    topic_name = f"{args.topic_prefix}{job_id}_{db}.{collection}"
                 except json.JSONDecodeError as err:
                     logger.error(
                         f"line {line_no} of {s3_key} contains invalid JSON data: {err.msg}"
                     )
                     continue
 
-                producer.send(args.kafka_topic, line)
+                kafka_topics = [
+                    NewTopic(name=topic_name, num_partitions=1, replication_factor=1)
+                ]
+                try:
+                    response = kafka_admin.create_topics(kafka_topics)
+                    logger.debug(f"Created topic {topic_name}")
+                except TopicAlreadyExistsError as e:
+                    pass
+                producer.send(topic_name, line)
 
 
 def get_message(event):
