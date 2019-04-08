@@ -160,6 +160,7 @@ def update_job_status(job_id, job_status):
 
 
 if __name__ == "__main__":
+    args = get_parameters()
     try:
         boto3.setup_default_session(
             profile_name=args.aws_profile, region_name=args.aws_region
