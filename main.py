@@ -29,7 +29,7 @@ def get_parameters():
     # Parse command line inputs and set defaults
     parser.add_argument("--aws-profile", default="default")
     parser.add_argument("--aws-region", default="eu-west-2")
-    parser.add_argument("--kafka-bootstrap-servers")
+    parser.add_argument("--kafka-bootstrap-servers", default=argparse.SUPPRESS)
     parser.add_argument("--ssl-broker", default="True")
     parser.add_argument("--kafka-topic")
 
