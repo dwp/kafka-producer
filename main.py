@@ -29,9 +29,9 @@ def get_parameters():
     # Parse command line inputs and set defaults
     parser.add_argument("--aws-profile", default="default")
     parser.add_argument("--aws-region", default="eu-west-2")
-    parser.add_argument("--kafka-bootstrap-servers")
+    parser.add_argument("--kafka-bootstrap-servers", default=argparse.SUPPRESS)
     parser.add_argument("--ssl-broker", default="True")
-    parser.add_argument("--kafka-topic")
+    parser.add_argument("--topic-prefix", default="")
 
     _args = parser.parse_args()
 
@@ -48,10 +48,10 @@ def get_parameters():
     if "SSL_BROKER" in os.environ:
         _args.ssl_broker = os.environ["SSL_BROKER"]
 
-    if "KAFKA_TOPIC" in os.environ:
-        _args.kafka_topic = os.environ["KAFKA_TOPIC"]
+    if "TOPIC_PREFIX" in os.environ:
+        _args.topic_prefix = os.environ["TOPIC_PREFIX"]
 
-    required_args = ["kafka_bootstrap_servers", "ssl_broker", "kafka_topic"]
+    required_args = ["kafka_bootstrap_servers", "ssl_broker"]
     missing_args = []
     for required_message_key in required_args:
         if required_message_key not in _args:
@@ -86,7 +86,9 @@ def handler(event, context):
     # Update dynamo db record
     update_job_status(message["job_id"], "RUNNING")
 
-    produce_kafka_messages(message["bucket"], message["fixture_data"], args)
+    produce_kafka_messages(
+        message["bucket"], message["job_id"], message["fixture_data"], args
+    )
 
     # Update status on dynamo db record
     update_job_status(message["job_id"], "SUCCESS")
@@ -101,7 +103,7 @@ def get_s3_keys(bucket, prefix):
             yield content["Key"]
 
 
-def produce_kafka_messages(bucket, fixture_data, args):
+def produce_kafka_messages(bucket, job_id, fixture_data, args):
     # Process each fixture data dir
     producer = KafkaProducer(
         bootstrap_servers=args.kafka_bootstrap_servers,
@@ -119,14 +121,17 @@ def produce_kafka_messages(bucket, fixture_data, args):
             ):
                 line_no += 1
                 try:
-                    json.loads(line)
+                    data = json.loads(line)
+                    db = data["message"]["db"]
+                    collection = data["message"]["collection"]
+                    topic_name = f"{args.topic_prefix}{job_id}_{db}.{collection}"
                 except json.JSONDecodeError as err:
                     logger.error(
                         f"line {line_no} of {s3_key} contains invalid JSON data: {err.msg}"
                     )
                     continue
-
-                producer.send(args.kafka_topic, line)
+                producer.send(topic_name, line)
+                producer.flush()
 
 
 def get_message(event):
@@ -160,6 +165,7 @@ def update_job_status(job_id, job_status):
 
 
 if __name__ == "__main__":
+    args = get_parameters()
     try:
         boto3.setup_default_session(
             profile_name=args.aws_profile, region_name=args.aws_region
