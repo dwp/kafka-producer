@@ -7,9 +7,7 @@ import logging
 import os
 import sys
 
-from kafka import KafkaAdminClient, KafkaProducer
-from kafka.admin import NewTopic
-from kafka.errors import TopicAlreadyExistsError
+from kafka import KafkaProducer
 
 # Initialise logging
 logger = logging.getLogger(__name__)
@@ -111,10 +109,6 @@ def produce_kafka_messages(bucket, job_id, fixture_data, args):
         bootstrap_servers=args.kafka_bootstrap_servers,
         ssl_check_hostname=args.ssl_broker,
     )
-    kafka_admin = KafkaAdminClient(
-        bootstrap_servers=args.kafka_bootstrap_servers,
-        ssl_check_hostname=args.ssl_broker,
-    )
     s3_client = boto3.client("s3")
     for prefix in fixture_data:
         for s3_key in get_s3_keys(bucket, prefix):
@@ -136,16 +130,8 @@ def produce_kafka_messages(bucket, job_id, fixture_data, args):
                         f"line {line_no} of {s3_key} contains invalid JSON data: {err.msg}"
                     )
                     continue
-
-                kafka_topics = [
-                    NewTopic(name=topic_name, num_partitions=1, replication_factor=1)
-                ]
-                try:
-                    response = kafka_admin.create_topics(kafka_topics)
-                    logger.debug(f"Created topic {topic_name}")
-                except TopicAlreadyExistsError as e:
-                    pass
                 producer.send(topic_name, line)
+                producer.flush()
 
 
 def get_message(event):
