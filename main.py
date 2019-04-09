@@ -51,7 +51,7 @@ def get_parameters():
         _args.ssl_broker = os.environ["SSL_BROKER"]
 
     if "TOPIC_PREFIX" in os.environ:
-        _args.kafka_topic = os.environ["TOPIC_PREFIX"]
+        _args.topic_prefix = os.environ["TOPIC_PREFIX"]
 
     required_args = ["kafka_bootstrap_servers", "ssl_broker"]
     missing_args = []
