@@ -15,7 +15,7 @@ docker-compose up
 Create an `event.json` file from the `event.json.example` file, changing the `Message` body to match your S3 bucket.
 
 Produce messages to your local broker container:
-`python3 main.py --aws-profile dataworks-development --kafka-bootstrap-servers localhost:29092 --topic-prefix db.`
+`python3 main.py --aws-profile dataworks-development --kafka-bootstrap-servers localhost:29092 --ssl-broker False --topic-prefix db.`
 
 ### Create the Sink Connector
 
