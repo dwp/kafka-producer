@@ -79,7 +79,7 @@ def handler(event, context):
         boto3.set_stream_logger()
         logger.debug(f"Using boto3 {boto3.__version__}")
 
-    logger.debug(event)
+    logger.info(event)
 
     message = get_message(event)
 
