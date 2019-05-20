@@ -9,7 +9,7 @@
         "MessageId": "a61e7452-050e-7777-24ba-29eef6e944a3",
         "TopicArn": "arn:aws:sns:eu-west-2:012345678910:my-sns-topic",
         "Subject": "None",
-        "Message": "{\"job_id\": \"pipeline-job-name_12\",\"bucket\": \"my-s3-bucket\",\"fixture_data\": [\"fixture-data/business-data/kafka/functional-tests\"]}",
+        "Message": "{\"job_id\": \"pipeline-job-name_12\",\"bucket\": \"my-s3-bucket\",\"fixture_data\": [\"fixture-data/business-data/kafka/functional-tests/test_example.json\"]}",
         "Timestamp": "2019-03-12T19:30:29.950Z",
         "SignatureVersion": "1",
         "Signature": "37FG/8Ldhuje+ndieD3UeMyakwAJ+v71ph4ovxFj5iJ7V/7hdH8H93jf33jf/Ir4pcXtG/pIERRtXXJgxVzI4Lwya9SnQ38H803HHh3VmKoUzCWh1pqpxc7/cfc12e888fb0bb57fd366bf0b81db83dcfc12e888fb0bb57fd366bf0b81db83d+/VB4dq10ERHSOejosRRWQ0i/yUo9gdjb2i/fvBAAILcjf5F2X/ysELHyJ/1ecd0f196a0413a86084e4e3014e1456/YGGNBL2g/2OROUrZ/fj5W85XT3kMQ7Q==",

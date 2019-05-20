@@ -110,28 +110,27 @@ def produce_kafka_messages(bucket, job_id, fixture_data, args):
         ssl_check_hostname=args.ssl_broker,
     )
     s3_client = boto3.client("s3")
-    for prefix in fixture_data:
-        for s3_key in get_s3_keys(bucket, prefix):
-            logger.debug(f"Processing key: {s3_key}")
-            line_no = 0
-            for line in (
-                s3_client.get_object(Bucket=bucket, Key=s3_key)["Body"]
-                .read()
-                .splitlines()
-            ):
-                line_no += 1
-                try:
-                    data = json.loads(line)
-                    db = data["message"]["db"]
-                    collection = data["message"]["collection"]
-                    topic_name = f"{args.topic_prefix}{job_id}_{db}.{collection}"
-                except json.JSONDecodeError as err:
-                    logger.error(
-                        f"line {line_no} of {s3_key} contains invalid JSON data: {err.msg}"
-                    )
-                    continue
-                producer.send(topic_name, line)
-                producer.flush()
+    for s3_key in fixture_data:
+        logger.debug(f"Processing key: {s3_key}")
+        line_no = 0
+        for line in (
+            s3_client.get_object(Bucket=bucket, Key=s3_key)["Body"]
+            .read()
+            .splitlines()
+        ):
+            line_no += 1
+            try:
+                data = json.loads(line)
+                db = data["message"]["db"]
+                collection = data["message"]["collection"]
+                topic_name = f"{args.topic_prefix}{job_id}_{db}.{collection}"
+            except json.JSONDecodeError as err:
+                logger.error(
+                    f"line {line_no} of {s3_key} contains invalid JSON data: {err.msg}"
+                )
+                continue
+            producer.send(topic_name, line)
+            producer.flush()
 
 
 def get_message(event):
