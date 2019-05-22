@@ -121,8 +121,8 @@ def produce_kafka_messages(bucket, job_id, fixture_data, args):
             line_no += 1
             try:
                 data = json.loads(line)
-                db = data["message"]["db"]
-                collection = data["message"]["collection"]
+                db = data["message"]["db"] if "db" in data["message"] else "missingDb"
+                collection = data["message"]["collection"] if "collection" in data["message"] else "missingCollection"
                 topic_name = f"{args.topic_prefix}{job_id}_{db}.{collection}"
             except json.JSONDecodeError as err:
                 logger.error(
