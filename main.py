@@ -104,7 +104,7 @@ def get_s3_keys(bucket, prefix):
 
 
 def produce_kafka_messages(bucket, job_id, fixture_data, args):
-    # Process each fixture data dir
+    # Process each fixture data dir, sending each file in it to kafka as a payload
     producer = KafkaProducer(
         bootstrap_servers=args.kafka_bootstrap_servers,
         ssl_check_hostname=args.ssl_broker,
@@ -112,20 +112,24 @@ def produce_kafka_messages(bucket, job_id, fixture_data, args):
     s3_client = boto3.client("s3")
     for s3_key in fixture_data:
         logger.info(f"Processing key: {s3_key}")
-        file = s3_client.get_object(Bucket=bucket, Key=s3_key)["Body"].read()
+        payload = s3_client.get_object(Bucket=bucket, Key=s3_key)["Body"].read()
+        db = "missingDb"
+        collection = "missingCollection"
+
         try:
-            data = json.loads(file)
-            db = data["message"]["db"] if "db" in data["message"] else "missingDb"
-            collection = data["message"]["collection"] if "collection" in data["message"] else "missingCollection"
-            topic_name = f"{args.topic_prefix}{job_id}_{db}.{collection}"
+            data = json.loads(payload)
+            db = data["message"]["db"] if "db" in data["message"] else db
+            collection = data["message"]["collection"] if "collection" in data["message"] else collection
         except json.JSONDecodeError as err:
-            logger.error(
-                f"line {s3_key} contains invalid JSON data: {err.msg}"
+            logger.info(
+                f"line {s3_key} contains invalid JSON data, so defaulting the db and collection names: Err={err.msg}"
             )
             continue
-        producer.send(topic_name, file)
+
+        topic_name = f"{args.topic_prefix}{job_id}_{db}.{collection}"
+        producer.send(topic_name, payload)
         producer.flush()
-        logger.info(f"Sent file from: {s3_key}")
+        logger.info(f"Sent file to kafka: {s3_key}")
 
 
 def get_message(event):
