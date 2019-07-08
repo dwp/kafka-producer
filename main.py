@@ -116,7 +116,6 @@ def produce_kafka_messages(bucket, job_id, fixture_data, args):
         for line in (
             s3_client.get_object(Bucket=bucket, Key=s3_key)["Body"]
             .read()
-            .splitlines()
         ):
             line_no += 1
             try:
