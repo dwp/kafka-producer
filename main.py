@@ -122,9 +122,8 @@ def produce_kafka_messages(bucket, job_id, fixture_data, args):
             collection = data["message"]["collection"] if "collection" in data["message"] else collection
         except json.JSONDecodeError as err:
             logger.info(
-                f"line {s3_key} contains invalid JSON data, so defaulting the db and collection names: Err={err.msg}"
+                f"File {s3_key} contains invalid JSON data, so defaulting the db and collection names: Err={err.msg}"
             )
-            continue
 
         topic_name = f"{args.topic_prefix}{job_id}_{db}.{collection}"
         producer.send(topic_name, payload)
