@@ -20,6 +20,8 @@ logging.basicConfig(
 )
 logger.info("Logging at {} level".format(log_level.upper()))
 
+dynamo_table_name = os.environ["DYNAMO_DB_TABLE_NAME"] if "DYNAMO_DB_TABLE_NAME" in os.environ else "JobStatus"
+
 
 def get_parameters():
     parser = argparse.ArgumentParser(
@@ -153,7 +155,9 @@ def get_message(event):
 
 def update_job_status(job_id, job_status):
     dynamodb = boto3.resource("dynamodb")
-    table = dynamodb.Table("JobStatus")
+    table = dynamodb.Table(dynamo_table_name)
+
+    logger.info(f"Setting dynamo status to {job_status} for job id {job_id} in table {dynamo_table_name}")
 
     response = table.update_item(
         Key={"JobId": job_id},
@@ -161,6 +165,8 @@ def update_job_status(job_id, job_status):
         ExpressionAttributeValues={":s": job_status},
         ReturnValues="UPDATED_NEW",
     )
+
+    logger.info(f"Dynamo response was {response} for job id {job_id}")
     return response
 
 
