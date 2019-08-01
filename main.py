@@ -131,7 +131,7 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key, args):
 
         topic_name = f"{args.topic_prefix}{job_id}_{db_name}.{collection_name}"
         logger.info(f"Sending file {s3_key} to topic {topic_name}")
-        producer.send(topic_name, value=payload, key=key)
+        producer.send(topic=topic_name, value=payload, key=key)
         producer.flush()
         logger.info(f"Sent file to kafka: {s3_key} on topic {topic_name}")
 
