@@ -89,7 +89,7 @@ def handler(event, context):
     update_job_status(message["job_id"], "RUNNING")
 
     produce_kafka_messages(
-        message["bucket"], message["job_id"], message["fixture_data"], args
+        message["bucket"], message["job_id"], message["fixture_data"], message["key"], args
     )
 
     # Update status on dynamo db record
@@ -105,7 +105,7 @@ def get_s3_keys(bucket, prefix):
             yield content["Key"]
 
 
-def produce_kafka_messages(bucket, job_id, fixture_data, args):
+def produce_kafka_messages(bucket, job_id, fixture_data, key, args):
     # Process each fixture data dir, sending each file in it to kafka as a payload
     producer = KafkaProducer(
         bootstrap_servers=args.kafka_bootstrap_servers,
@@ -131,7 +131,7 @@ def produce_kafka_messages(bucket, job_id, fixture_data, args):
 
         topic_name = f"{args.topic_prefix}{job_id}_{db_name}.{collection_name}"
         logger.info(f"Sending file {s3_key} to topic {topic_name}")
-        producer.send(topic_name, payload)
+        producer.send(topic=topic_name, value=payload, key=key)
         producer.flush()
         logger.info(f"Sent file to kafka: {s3_key} on topic {topic_name}")
 
@@ -139,7 +139,7 @@ def produce_kafka_messages(bucket, job_id, fixture_data, args):
 def get_message(event):
     message = json.loads(event["Records"][0]["Sns"]["Message"])
     logger.debug(message)
-    required_message_keys = ["job_id", "bucket", "fixture_data"]
+    required_message_keys = ["job_id", "bucket", "fixture_data", "key"]
     missing_keys = []
     for required_message_key in required_message_keys:
         if required_message_key not in message:
