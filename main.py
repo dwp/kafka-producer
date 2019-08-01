@@ -131,9 +131,9 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, args):
 
         topic_name = f"{args.topic_prefix}{job_id}_{db_name}.{collection_name}"
         key_bytes = bytes(key_name, 'utf-8')
-        report = "file {s3_key} to topic {topic_name} " \
-                 "with key bytes {key_bytes} from key {key_name} " \
-                 "at {args.kafka_bootstrap_servers}"
+        report = f"file {s3_key} to topic {topic_name} " \
+                 f"with key bytes {key_bytes} from key {key_name} " \
+                 f"at {args.kafka_bootstrap_servers}"
         logger.info(f"Sending {report}")
         producer.send(topic=topic_name, value=payload, key=key_bytes)
         producer.flush()
