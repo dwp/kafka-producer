@@ -131,10 +131,13 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, args):
 
         topic_name = f"{args.topic_prefix}{job_id}_{db_name}.{collection_name}"
         key_bytes = bytes(key_name, 'utf-8')
-        logger.info(f"Sending file {s3_key} to topic {topic_name} with key bytes of {key_bytes} from key name of {key_name}")
+        report = "file {s3_key} to topic {topic_name} " \
+                 "with key bytes {key_bytes} from key {key_name} " \
+                 "at {args.kafka_bootstrap_servers}"
+        logger.info(f"Sending {report}")
         producer.send(topic=topic_name, value=payload, key=key_bytes)
         producer.flush()
-        logger.info(f"Sent file to kafka: {s3_key} on topic {topic_name} with key {key_name}")
+        logger.info(f"Sent {report}")
 
 
 def get_message(event):
