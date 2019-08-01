@@ -105,7 +105,7 @@ def get_s3_keys(bucket, prefix):
             yield content["Key"]
 
 
-def produce_kafka_messages(bucket, job_id, fixture_data, key, args):
+def produce_kafka_messages(bucket, job_id, fixture_data, key_name, args):
     # Process each fixture data dir, sending each file in it to kafka as a payload
     producer = KafkaProducer(
         bootstrap_servers=args.kafka_bootstrap_servers,
@@ -130,10 +130,11 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key, args):
             )
 
         topic_name = f"{args.topic_prefix}{job_id}_{db_name}.{collection_name}"
-        logger.info(f"Sending file {s3_key} to topic {topic_name}")
-        producer.send(topic=topic_name, value=payload, key=key)
+        key_bytes = bytes(key_name, 'utf-8')
+        logger.info(f"Sending file {s3_key} to topic {topic_name} with key bytes of {key_bytes} from key name of {key_name}")
+        producer.send(topic=topic_name, value=payload, key=key_bytes)
         producer.flush()
-        logger.info(f"Sent file to kafka: {s3_key} on topic {topic_name}")
+        logger.info(f"Sent file to kafka: {s3_key} on topic {topic_name} with key {key_name}")
 
 
 def get_message(event):
