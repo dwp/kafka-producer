@@ -85,11 +85,15 @@ def handler(event, context):
 
     message = get_message(event)
 
+    single_topic = False
+    if "single_topic" in message:
+        single_topic = True
+
     # Update dynamo db record
     update_job_status(message["job_id"], "RUNNING")
 
     produce_kafka_messages(
-        message["bucket"], message["job_id"], message["fixture_data"], message["key"], args
+        message["bucket"], message["job_id"], message["fixture_data"], message["key"], single_topic, args
     )
 
     # Update status on dynamo db record
@@ -105,7 +109,7 @@ def get_s3_keys(bucket, prefix):
             yield content["Key"]
 
 
-def produce_kafka_messages(bucket, job_id, fixture_data, key_name, args):
+def produce_kafka_messages(bucket, job_id, fixture_data, key_name, single_topic, args):
     # Process each fixture data dir, sending each file in it to kafka as a payload
     producer = KafkaProducer(
         bootstrap_servers=args.kafka_bootstrap_servers,
@@ -123,7 +127,11 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, args):
                 f"File {s3_key} contains invalid JSON data: Err={err.msg}"
             )
 
-        topic_name = f"{args.topic_prefix}{job_id}"
+        if single_topic:
+            topic_name = f"{args.topic_prefix}{job_id}"
+        else:
+            topic_name = f"{args.topic_prefix}{job_id}_{db_name}.{collection_name}"
+
         key_bytes = bytes(key_name, 'utf-8')
         report = f"file {s3_key} to topic {topic_name} " \
                  f"with key bytes {key_bytes} from key {key_name} " \
