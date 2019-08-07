@@ -123,7 +123,6 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, single_topic,
         collection_name = "missingCollection"
 
         try:
-            json.loads(payload)
             data = json.loads(payload)
             if "db" in data["message"]:
                 db_name = data["message"]["db"]
