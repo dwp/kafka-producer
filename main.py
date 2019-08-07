@@ -115,21 +115,15 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, args):
     for s3_key in fixture_data:
         logger.info(f"Processing key: {s3_key}")
         payload = s3_client.get_object(Bucket=bucket, Key=s3_key)["Body"].read()
-        db_name = "missingDb"
-        collection_name = "missingCollection"
 
         try:
-            data = json.loads(payload)
-            if "db" in data["message"]:
-                db_name = data["message"]["db"]
-            if "collection" in data["message"]:
-                collection_name = data["message"]["collection"]
+            json.loads(payload)
         except json.JSONDecodeError as err:
             logger.warning(
                 f"File {s3_key} contains invalid JSON data: Err={err.msg}"
             )
 
-        topic_name = f"{args.topic_prefix}{job_id}_{db_name}.{collection_name}"
+        topic_name = f"{args.topic_prefix}{job_id}"
         key_bytes = bytes(key_name, 'utf-8')
         report = f"file {s3_key} to topic {topic_name} " \
                  f"with key bytes {key_bytes} from key {key_name} " \
