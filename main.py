@@ -6,7 +6,9 @@ import json
 import logging
 import os
 import sys
+import happybase 
 import requests
+import thriftpy2
 import base64
 import binascii
 
