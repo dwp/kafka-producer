@@ -151,7 +151,7 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, single_topic,
             encrypted_payload = data
         except json.JSONDecodeError as err:
             logger.warning(
-                f"File {s3_key} contains invalid JSON data so couldn't encrypt passload: Err={err.msg}"
+                f"File {s3_key} contains invalid JSON data so couldn't encrypt payload: Err={err.msg}"
             )
 
         if single_topic:
