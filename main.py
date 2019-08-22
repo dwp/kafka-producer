@@ -6,7 +6,13 @@ import json
 import logging
 import os
 import sys
+import requests
+import base64
+import binascii
 
+from Crypto import Random
+from Crypto.Cipher import AES
+from Crypto.Util import Counter
 from kafka import KafkaProducer
 
 # Initialise logging
@@ -52,6 +58,9 @@ def get_parameters():
 
     if "TOPIC_PREFIX" in os.environ:
         _args.topic_prefix = os.environ["TOPIC_PREFIX"]
+
+    if "DKS_ENDPOINT" in os.environ:
+        _args.dks_endpoint = os.environ["DKS_ENDPOINT"]
 
     required_args = ["kafka_bootstrap_servers", "ssl_broker"]
     missing_args = []
@@ -121,16 +130,28 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, single_topic,
         payload = s3_client.get_object(Bucket=bucket, Key=s3_key)["Body"].read()
         db_name = "missingDb"
         collection_name = "missingCollection"
+        dks_endpoint = os.path.join(args.dks_endpoint , "/datakey")
 
         try:
             data = json.loads(payload)
-            if "db" in data["message"]:
-                db_name = data["message"]["db"]
-            if "collection" in data["message"]:
-                collection_name = data["message"]["collection"]
+            message = data["message"]
+            if "db" in message:
+                db_name = message["db"]
+            if "collection" in message:
+                collection_name = message["collection"]
         except json.JSONDecodeError as err:
             logger.warning(
-                f"File {s3_key} contains invalid JSON data: Err={err.msg}"
+                f"File {s3_key} contains invalid JSON data so couldn't get db/collection: Err={err.msg}"
+            )
+
+        encrypted_payload = payload
+        try:
+            data = json.loads(payload)
+            data["message"] = encrypt_payload_and_update_message(dks_endpoint, data["message"])
+            encrypted_payload = data
+        except json.JSONDecodeError as err:
+            logger.warning(
+                f"File {s3_key} contains invalid JSON data so couldn't encrypt passload: Err={err.msg}"
             )
 
         if single_topic:
@@ -143,9 +164,49 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, single_topic,
                  f"with key bytes {key_bytes} from key {key_name} " \
                  f"at {args.kafka_bootstrap_servers}"
         logger.info(f"Sending {report}")
-        producer.send(topic=topic_name, value=payload, key=key_bytes)
+        producer.send(topic=topic_name, value=encrypted_payload, key=key_bytes)
         producer.flush()
         logger.info(f"Sent {report}")
+
+
+def encrypt_payload_and_update_message(dks_endpoint, message):
+    logger.info(f"Encrypting message using endpoint '{dks_endpoint}''")
+
+    content = requests.get(dks_endpoint).json()
+
+    encryption_key = content['plaintextDataKey']
+    encrypted_key = content['ciphertextDataKey']
+    master_key_id = content['dataKeyEncryptionKeyId']
+
+    message["encryption"]["encryptedEncryptionKey"] = encrypted_key
+    message["encryption"]["keyEncryptionKeyId"] = master_key_id
+
+    try:
+        db_object = message['dbObject']
+        record_string = json.dumps(db_object)
+        [iv, encrypted_record] = encrypt(encryption_key,
+                                            record_string)
+        message['dbObject'] = encrypted_record.decode('ascii')
+        message['encryption']['initialisationVector'] = iv.decode('ascii')
+    except json.JSONDecodeError as err:
+        logger.warning(
+            f"Message contains invalid JSON data in dbObject so could not encrypt: Err={err.msg}"
+        )
+        message['encryption']['initialisationVector'] = "PHONEYVECTOR"
+
+    return message
+
+
+def encrypt(key, plaintext):
+    logger.info(f"Encrypting payload of '{plaintext}'' using key '{key}''")
+
+    initialisation_vector = Random.new().read(AES.block_size)
+    iv_int = int(binascii.hexlify(initialisation_vector), 16)
+    counter = Counter.new(AES.block_size * 8, initial_value=iv_int)
+    aes = AES.new(key.encode("utf8"), AES.MODE_CTR, counter=counter)
+    ciphertext = aes.encrypt(plaintext.encode("utf8"))
+    return (base64.b64encode(initialisation_vector),
+            base64.b64encode(ciphertext))
 
 
 def get_message(event):
