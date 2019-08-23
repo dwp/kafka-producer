@@ -157,8 +157,8 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, single_topic,
         try:
             data = json.loads(payload)
             data["message"] = \
-                encrypt_payload_and_update_message_using_key(args.encrypted_key, data["message"]) \
-                if args.encrypted_key \
+                encrypt_payload_and_update_message_using_key(args.encryption_key, data["message"]) \
+                if args.encryption_key \
                 else encrypt_payload_and_update_message_using_dks(dks_endpoint, data["message"])
             encrypted_payload = data
         except json.JSONDecodeError as err:
