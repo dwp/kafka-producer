@@ -43,6 +43,7 @@ def get_parameters():
     parser.add_argument("--ssl-broker", default="True")
     parser.add_argument("--topic-prefix", default="")
     parser.add_argument("--dks-endpoint", default="")
+    parser.add_argument("--encryption-key", default="")
 
     _args = parser.parse_args()
 
@@ -65,7 +66,10 @@ def get_parameters():
     if "DKS_ENDPOINT" in os.environ:
         _args.dks_endpoint = os.environ["DKS_ENDPOINT"]
 
-    required_args = ["kafka_bootstrap_servers", "ssl_broker", "dks_endpoint"]
+    if "ENCRYPTION_KEY" in os.environ:
+        _args.encryption_key = os.environ["ENCRYPTION_KEY"]
+
+    required_args = ["kafka_bootstrap_servers", "ssl_broker"]
     missing_args = []
     for required_message_key in required_args:
         if required_message_key not in _args:
@@ -152,7 +156,9 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, single_topic,
         encrypted_payload = payload
         try:
             data = json.loads(payload)
-            data["message"] = encrypt_payload_and_update_message(dks_endpoint, data["message"])
+            data["message"] = args.encrypted_key ?
+                encrypt_payload_and_update_message_using_key(args.encrypted_key, data["message"])
+                : encrypt_payload_and_update_message_using_dks(dks_endpoint, data["message"])
             encrypted_payload = data
         except json.JSONDecodeError as err:
             logger.warning(
@@ -174,8 +180,8 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, single_topic,
         logger.info(f"Sent {report}")
 
 
-def encrypt_payload_and_update_message(dks_endpoint, message):
-    logger.info(f"Encrypting message using endpoint '{dks_endpoint}''")
+def encrypt_payload_and_update_message_using_dks(dks_endpoint, message):
+    logger.info(f"Encrypting message using endpoint '{dks_endpoint}'")
 
     content = requests.get(dks_endpoint).json()
 
@@ -185,7 +191,15 @@ def encrypt_payload_and_update_message(dks_endpoint, message):
 
     message["encryption"]["encryptedEncryptionKey"] = encrypted_key
     message["encryption"]["keyEncryptionKeyId"] = master_key_id
+    return encrypt_payload(encryption_key, message)
 
+
+def encrypt_payload_and_update_message_using_key(encryption_key, message):
+    logger.info(f"Encrypting message using encryption key")
+    return encrypt_payload(encryption_key, message)
+
+
+def encrypt_payload(encryption_key, message):
     try:
         db_object = message['dbObject']
         record_string = json.dumps(db_object)
