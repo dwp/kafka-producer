@@ -174,7 +174,8 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, single_topic,
         key_bytes = bytes(key_name, 'utf-8')
         report = f"file {s3_key} to topic {topic_name} " \
                  f"with key bytes {key_bytes} from key {key_name} " \
-                 f"at {args.kafka_bootstrap_servers}"
+                 f"at {args.kafka_bootstrap_servers}" \
+                 f"with payload {encrypted_payload}"
         logger.info(f"Sending {report}")
         producer.send(topic=topic_name, value=encrypted_payload, key=key_bytes)
         producer.flush()
@@ -218,7 +219,7 @@ def encrypt_payload(encryption_key, message):
 
 
 def encrypt(key, plaintext):
-    logger.info(f"Encrypting payload of '{plaintext}'' using key '{key}''")
+    logger.info(f"Encrypting payload of '{plaintext}' using key '{key}'")
 
     initialisation_vector = Random.new().read(AES.block_size)
     iv_int = int(binascii.hexlify(initialisation_vector), 16)
