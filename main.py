@@ -162,7 +162,7 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, single_topic,
                 encrypt_payload_and_update_message_using_key(args.encryption_key, data["message"]) \
                 if args.encryption_key \
                 else encrypt_payload_and_update_message_using_dks(dks_endpoint, data["message"])
-            encrypted_payload = data.replace("'",'"').encode('utf-8')
+            encrypted_payload = json.dumps(data).encode('utf-8')
         except json.JSONDecodeError as err:
             logger.warning(
                 f"File {s3_key} contains invalid JSON data so couldn't encrypt payload: Err={err.msg}"
