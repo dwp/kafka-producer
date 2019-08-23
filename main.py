@@ -42,6 +42,7 @@ def get_parameters():
     parser.add_argument("--kafka-bootstrap-servers", default=argparse.SUPPRESS)
     parser.add_argument("--ssl-broker", default="True")
     parser.add_argument("--topic-prefix", default="")
+    parser.add_argument("--dks-endpoint", default="")
 
     _args = parser.parse_args()
 
@@ -64,7 +65,7 @@ def get_parameters():
     if "DKS_ENDPOINT" in os.environ:
         _args.dks_endpoint = os.environ["DKS_ENDPOINT"]
 
-    required_args = ["kafka_bootstrap_servers", "ssl_broker"]
+    required_args = ["kafka_bootstrap_servers", "ssl_broker", "dks_endpoint"]
     missing_args = []
     for required_message_key in required_args:
         if required_message_key not in _args:
@@ -86,6 +87,7 @@ def get_parameters():
 
 def handler(event, context):
     args = get_parameters()
+    logger.info(args)
 
     if logger.isEnabledFor(logging.DEBUG):
         # Log everything from boto3
@@ -129,10 +131,11 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, single_topic,
     s3_client = boto3.client("s3")
     for s3_key in fixture_data:
         logger.info(f"Processing key: {s3_key}")
+        logger.info(f"Dks endpoint: {args.dks_endpoint}")
         payload = s3_client.get_object(Bucket=bucket, Key=s3_key)["Body"].read()
         db_name = "missingDb"
         collection_name = "missingCollection"
-        dks_endpoint = os.path.join(args.dks_endpoint , "/datakey")
+        dks_endpoint = os.path.join(args.dks_endpoint , "datakey")
 
         try:
             data = json.loads(payload)
