@@ -192,6 +192,7 @@ def encrypt_payload_and_update_message_using_dks(dks_endpoint, message):
     encryption_key = content['plaintextDataKey']
     encrypted_key = content['ciphertextDataKey']
     master_key_id = content['dataKeyEncryptionKeyId']
+    logger.info(f"Encrypted dataKey '{encrypted_key}'")
 
     message["encryption"]["encryptedEncryptionKey"] = encrypted_key
     message["encryption"]["keyEncryptionKeyId"] = master_key_id
