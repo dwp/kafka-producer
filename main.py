@@ -44,7 +44,6 @@ def get_parameters():
     parser.add_argument("--topic-prefix", default="")
     parser.add_argument("--dks-endpoint", default="")
     parser.add_argument("--encryption-key", default="")
-    parser.add_argument("--skip-encryption", default="")
 
     _args = parser.parse_args()
 
@@ -70,9 +69,6 @@ def get_parameters():
     if "ENCRYPTION_KEY" in os.environ:
         _args.encryption_key = os.environ["ENCRYPTION_KEY"]
 
-    if "SKIP_ENCRYPTION" in os.environ:
-        _args.encryption_key = os.environ["SKIP_ENCRYPTION"]
-
     required_args = ["kafka_bootstrap_servers", "ssl_broker"]
     missing_args = []
     for required_message_key in required_args:
@@ -89,7 +85,6 @@ def get_parameters():
     # Convert any arguments from strings
     true_stings = ["True", "true", "TRUE", "1"]
     _args.ssl_broker = True if _args.ssl_broker in true_stings else False
-    _args.skip_encryption = True if _args.skip_encryption in true_stings else False
 
     return _args
 
@@ -115,7 +110,7 @@ def handler(event, context):
     update_job_status(message["job_id"], "RUNNING")
 
     produce_kafka_messages(
-        message["bucket"], message["job_id"], message["fixture_data"], message["key"], single_topic, args
+        message["bucket"], message["job_id"], message["fixture_data"], message["key"], message["skip-encryption"], single_topic, args
     )
 
     # Update status on dynamo db record
@@ -131,12 +126,16 @@ def get_s3_keys(bucket, prefix):
             yield content["Key"]
 
 
-def produce_kafka_messages(bucket, job_id, fixture_data, key_name, single_topic, args):
+def produce_kafka_messages(bucket, job_id, fixture_data, key_name, skip_encryption, single_topic, args):
     # Process each fixture data dir, sending each file in it to kafka as a payload
     producer = KafkaProducer(
         bootstrap_servers=args.kafka_bootstrap_servers,
         ssl_check_hostname=args.ssl_broker,
     )
+
+    true_stings = ["True", "true", "TRUE", "1"]
+    should_encrypt = False if skip_encryption in true_stings else True
+
     s3_client = boto3.client("s3")
     for s3_key in fixture_data:
         logger.info(f"Processing key: {s3_key}")
@@ -161,7 +160,7 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, single_topic,
             )
 
         encrypted_payload = payload
-        if args.skip_encryption is False:
+        if should_encrypt:
             try:
                 data = json.loads(payload)
                 data["message"] = \
