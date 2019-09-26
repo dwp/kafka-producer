@@ -30,6 +30,8 @@ logger.info("Logging at {} level".format(log_level.upper()))
 
 dynamo_table_name = os.environ["DYNAMO_DB_TABLE_NAME"] if "DYNAMO_DB_TABLE_NAME" in os.environ else "JobStatus"
 
+true_strings = ["True", "true", "TRUE", "1"]
+
 
 def get_parameters():
     parser = argparse.ArgumentParser(
@@ -83,8 +85,7 @@ def get_parameters():
         )
 
     # Convert any arguments from strings
-    true_stings = ["True", "true", "TRUE", "1"]
-    _args.ssl_broker = True if _args.ssl_broker in true_stings else False
+    _args.ssl_broker = True if _args.ssl_broker in true_strings else False
 
     return _args
 
@@ -110,7 +111,7 @@ def handler(event, context):
     update_job_status(message["job_id"], "RUNNING")
 
     produce_kafka_messages(
-        message["bucket"], message["job_id"], message["fixture_data"], message["key"], single_topic, args
+        message["bucket"], message["job_id"], message["fixture_data"], message["key"], message["skip_encryption"], single_topic, args
     )
 
     # Update status on dynamo db record
@@ -126,12 +127,14 @@ def get_s3_keys(bucket, prefix):
             yield content["Key"]
 
 
-def produce_kafka_messages(bucket, job_id, fixture_data, key_name, single_topic, args):
+def produce_kafka_messages(bucket, job_id, fixture_data, key_name, skip_encryption, single_topic, args):
     # Process each fixture data dir, sending each file in it to kafka as a payload
     producer = KafkaProducer(
         bootstrap_servers=args.kafka_bootstrap_servers,
         ssl_check_hostname=args.ssl_broker,
     )
+    should_encrypt = False if skip_encryption is not None and skip_encryption in true_strings else True
+
     s3_client = boto3.client("s3")
     for s3_key in fixture_data:
         logger.info(f"Processing key: {s3_key}")
@@ -156,17 +159,18 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, single_topic,
             )
 
         encrypted_payload = payload
-        try:
-            data = json.loads(payload)
-            data["message"] = \
-                encrypt_payload_and_update_message_using_key(args.encryption_key, data["message"]) \
-                if args.encryption_key \
-                else encrypt_payload_and_update_message_using_dks(dks_endpoint, data["message"])
-            encrypted_payload = json.dumps(data).encode('utf-8')
-        except json.JSONDecodeError as err:
-            logger.warning(
-                f"File {s3_key} contains invalid JSON data so couldn't encrypt payload: Err={err.msg}"
-            )
+        if should_encrypt:
+            try:
+                data = json.loads(payload)
+                data["message"] = \
+                    encrypt_payload_and_update_message_using_key(args.encryption_key, data["message"]) \
+                    if args.encryption_key \
+                    else encrypt_payload_and_update_message_using_dks(dks_endpoint, data["message"])
+                encrypted_payload = json.dumps(data).encode('utf-8')
+            except json.JSONDecodeError as err:
+                logger.warning(
+                    f"File {s3_key} contains invalid JSON data so couldn't encrypt payload: Err={err.msg}"
+                )
 
         if single_topic:
             topic_name = f"{args.topic_prefix}{job_id}"
