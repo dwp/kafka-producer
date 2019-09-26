@@ -110,8 +110,10 @@ def handler(event, context):
     # Update dynamo db record
     update_job_status(message["job_id"], "RUNNING")
 
+    skip_encryption = "skip_encryption" in message and message["skip_encryption"] in true_strings
+
     produce_kafka_messages(
-        message["bucket"], message["job_id"], message["fixture_data"], message["key"], message["skip_encryption"], single_topic, args
+        message["bucket"], message["job_id"], message["fixture_data"], message["key"], skip_encryption, single_topic, args
     )
 
     # Update status on dynamo db record
@@ -133,7 +135,6 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, skip_encrypti
         bootstrap_servers=args.kafka_bootstrap_servers,
         ssl_check_hostname=args.ssl_broker,
     )
-    should_encrypt = False if skip_encryption is not None and skip_encryption in true_strings else True
 
     s3_client = boto3.client("s3")
     for s3_key in fixture_data:
@@ -159,7 +160,7 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, skip_encrypti
             )
 
         encrypted_payload = payload
-        if should_encrypt:
+        if not skip_encryption:
             try:
                 data = json.loads(payload)
                 data["message"] = \
