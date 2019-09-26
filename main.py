@@ -44,6 +44,7 @@ def get_parameters():
     parser.add_argument("--topic-prefix", default="")
     parser.add_argument("--dks-endpoint", default="")
     parser.add_argument("--encryption-key", default="")
+    parser.add_argument("--skip-encryption", default="")
 
     _args = parser.parse_args()
 
@@ -69,6 +70,9 @@ def get_parameters():
     if "ENCRYPTION_KEY" in os.environ:
         _args.encryption_key = os.environ["ENCRYPTION_KEY"]
 
+    if "SKIP_ENCRYPTION" in os.environ:
+        _args.encryption_key = os.environ["SKIP_ENCRYPTION"]
+
     required_args = ["kafka_bootstrap_servers", "ssl_broker"]
     missing_args = []
     for required_message_key in required_args:
@@ -85,6 +89,7 @@ def get_parameters():
     # Convert any arguments from strings
     true_stings = ["True", "true", "TRUE", "1"]
     _args.ssl_broker = True if _args.ssl_broker in true_stings else False
+    _args.skip_encryption = True if _args.skip_encryption in true_stings else False
 
     return _args
 
@@ -156,17 +161,18 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, single_topic,
             )
 
         encrypted_payload = payload
-        try:
-            data = json.loads(payload)
-            data["message"] = \
-                encrypt_payload_and_update_message_using_key(args.encryption_key, data["message"]) \
-                if args.encryption_key \
-                else encrypt_payload_and_update_message_using_dks(dks_endpoint, data["message"])
-            encrypted_payload = json.dumps(data).encode('utf-8')
-        except json.JSONDecodeError as err:
-            logger.warning(
-                f"File {s3_key} contains invalid JSON data so couldn't encrypt payload: Err={err.msg}"
-            )
+        if args.skip_encryption is False:
+            try:
+                data = json.loads(payload)
+                data["message"] = \
+                    encrypt_payload_and_update_message_using_key(args.encryption_key, data["message"]) \
+                    if args.encryption_key \
+                    else encrypt_payload_and_update_message_using_dks(dks_endpoint, data["message"])
+                encrypted_payload = json.dumps(data).encode('utf-8')
+            except json.JSONDecodeError as err:
+                logger.warning(
+                    f"File {s3_key} contains invalid JSON data so couldn't encrypt payload: Err={err.msg}"
+                )
 
         if single_topic:
             topic_name = f"{args.topic_prefix}{job_id}"
