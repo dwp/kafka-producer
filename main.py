@@ -110,7 +110,7 @@ def handler(event, context):
     update_job_status(message["job_id"], "RUNNING")
 
     produce_kafka_messages(
-        message["bucket"], message["job_id"], message["fixture_data"], message["key"], message["skip-encryption"], single_topic, args
+        message["bucket"], message["job_id"], message["fixture_data"], message["key"], message["skip_encryption"], single_topic, args
     )
 
     # Update status on dynamo db record
