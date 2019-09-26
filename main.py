@@ -30,6 +30,8 @@ logger.info("Logging at {} level".format(log_level.upper()))
 
 dynamo_table_name = os.environ["DYNAMO_DB_TABLE_NAME"] if "DYNAMO_DB_TABLE_NAME" in os.environ else "JobStatus"
 
+true_strings = ["True", "true", "TRUE", "1"]
+
 
 def get_parameters():
     parser = argparse.ArgumentParser(
@@ -83,8 +85,7 @@ def get_parameters():
         )
 
     # Convert any arguments from strings
-    true_stings = ["True", "true", "TRUE", "1"]
-    _args.ssl_broker = True if _args.ssl_broker in true_stings else False
+    _args.ssl_broker = True if _args.ssl_broker in true_strings else False
 
     return _args
 
@@ -132,9 +133,7 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, skip_encrypti
         bootstrap_servers=args.kafka_bootstrap_servers,
         ssl_check_hostname=args.ssl_broker,
     )
-
-    true_stings = ["True", "true", "TRUE", "1"]
-    should_encrypt = False if skip_encryption is not None and skip_encryption in true_stings else True
+    should_encrypt = False if skip_encryption is not None and skip_encryption in true_strings else True
 
     s3_client = boto3.client("s3")
     for s3_key in fixture_data:
