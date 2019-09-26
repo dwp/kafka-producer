@@ -134,7 +134,7 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, skip_encrypti
     )
 
     true_stings = ["True", "true", "TRUE", "1"]
-    should_encrypt = False if skip_encryption in true_stings else True
+    should_encrypt = False if skip_encryption is not None and skip_encryption in true_stings else True
 
     s3_client = boto3.client("s3")
     for s3_key in fixture_data:
