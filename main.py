@@ -46,6 +46,8 @@ def get_parameters():
     parser.add_argument("--topic-prefix", default="")
     parser.add_argument("--dks-endpoint", default="")
     parser.add_argument("--encryption-key", default="")
+    parser.add_argument("--encrypted-encryption-key", default="")
+    parser.add_argument("--master-encryption-key-id", default="")
 
     _args = parser.parse_args()
 
