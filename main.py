@@ -71,6 +71,12 @@ def get_parameters():
     if "ENCRYPTION_KEY" in os.environ:
         _args.encryption_key = os.environ["ENCRYPTION_KEY"]
 
+    if "ENCRYPTED_ENCRYPTION_KEY" in os.environ:
+        _args.encrypted_encryption_key = os.environ["ENCRYPTED_ENCRYPTION_KEY"]
+
+    if "MASTER_ENCRYPTION_KEY_ID" in os.environ:
+        _args.master_encryption_key_id = os.environ["MASTER_ENCRYPTION_KEY_ID"]
+
     required_args = ["kafka_bootstrap_servers", "ssl_broker"]
     missing_args = []
     for required_message_key in required_args:
@@ -164,7 +170,7 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, skip_encrypti
             try:
                 data = json.loads(payload)
                 data["message"] = \
-                    encrypt_payload_and_update_message_using_key(args.encryption_key, data["message"]) \
+                    encrypt_payload_and_update_message_using_key(args, data["message"]) \
                     if args.encryption_key \
                     else encrypt_payload_and_update_message_using_dks(dks_endpoint, data["message"])
                 encrypted_payload = json.dumps(data).encode('utf-8')
@@ -204,9 +210,18 @@ def encrypt_payload_and_update_message_using_dks(dks_endpoint, message):
     return encrypt_payload(encryption_key, message)
 
 
-def encrypt_payload_and_update_message_using_key(encryption_key, message):
+def encrypt_payload_and_update_message_using_key(args, message):
     logger.info(f"Encrypting message using encryption key")
-    return encrypt_payload(encryption_key, message)
+
+    if args.encrypted_encryption_key:
+        logger.info(f"Adding encrypted dataKey '{args.encrypted_encryption_key}' to message")
+        message["encryption"]["encryptedEncryptionKey"] = args.encrypted_encryption_key
+
+    if args.master_encryption_key_id:
+        logger.info(f"Adding master key id '{args.master_encryption_key_id}' to message")
+        message["encryption"]["keyEncryptionKeyId"] = args.master_encryption_key_id
+
+    return encrypt_payload(args.encryption_key, message)
 
 
 def encrypt_payload(encryption_key, message):
