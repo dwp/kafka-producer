@@ -249,7 +249,7 @@ def encrypt(key, plaintext):
     initialisation_vector = Random.new().read(AES.block_size)
     iv_int = int(binascii.hexlify(initialisation_vector), 16)
     counter = Counter.new(AES.block_size * 8, initial_value=iv_int)
-    aes = AES.new(base64.b64encode(key), AES.MODE_CTR, counter=counter)
+    aes = AES.new(base64.b64decode(key), AES.MODE_CTR, counter=counter)
     ciphertext = aes.encrypt(plaintext.encode("utf8"))
     return (base64.b64encode(initialisation_vector),
             base64.b64encode(ciphertext))
