@@ -47,7 +47,7 @@ jobs:
             sudo pip install -r requirements.txt
       - snyk/scan:
           organization: dwp-dataworks
-          severity-threshold: high
+          severity-threshold: low
           target-file: requirements.txt
           project: '${CIRCLE_PROJECT_REPONAME}/pr-kafka-producer'
 
@@ -63,7 +63,7 @@ jobs:
             sudo pip install -r requirements.txt
       - snyk/scan:
           organization: dwp-dataworks
-          severity-threshold: high
+          severity-threshold: low
           target-file: requirements.txt
           project: '${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}-kafka-producer'
 
