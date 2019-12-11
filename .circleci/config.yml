@@ -43,7 +43,7 @@ jobs:
       - run:
           name: debug
           command: |
-            pip install -r requirements.txt
+            sudo pip install -r requirements.txt
       - snyk/scan:
           organization: dwp-dataworks
           severity-threshold: high
