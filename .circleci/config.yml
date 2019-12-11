@@ -40,6 +40,10 @@ jobs:
       - image: circleci/python:3.7.1
     steps:
       - checkout
+      - run:
+          name: debug
+          command: |
+            pip install -r requirements
       - snyk/scan:
           organization: dwp-dataworks
           severity-threshold: high
