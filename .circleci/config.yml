@@ -37,7 +37,7 @@ jobs:
 
   snyk-pr:
     docker:
-      - image: circleci/openjdk:8-jdk
+      - image: circleci/python:3.7.1
     steps:
       - checkout
       - snyk/scan:
@@ -48,7 +48,7 @@ jobs:
 
   snyk-master:
     docker:
-      - image: circleci/openjdk:8-jdk
+      - image: circleci/python:3.7.1
     steps:
       - checkout
       - snyk/scan:
