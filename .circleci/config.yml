@@ -45,6 +45,7 @@ jobs:
           severity-threshold: high
           target-file: requirements.txt
           project: '${CIRCLE_PROJECT_REPONAME}/pr-kafka-producer'
+          additional-arguments: "--command=python3"
 
   snyk-master:
     docker:
@@ -56,6 +57,7 @@ jobs:
           severity-threshold: high
           target-file: requirements.txt
           project: '${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}-kafka-producer'
+          additional-arguments: "--command=python3"
 
   publish-github-release:
     docker:
