@@ -41,7 +41,8 @@ jobs:
     steps:
       - checkout
       - run:
-          name: debug
+          # Snyk is supposed to do this automatically but it doesn't, so we manually install dependencies to be tested
+          name: Install dependencies
           command: |
             sudo pip install -r requirements.txt
       - snyk/scan:
@@ -55,12 +56,16 @@ jobs:
       - image: circleci/python:3.7.1
     steps:
       - checkout
+      - run:
+          # Snyk is supposed to do this automatically but it doesn't, so we manually install dependencies to be tested
+          name: Install dependencies
+          command: |
+            sudo pip install -r requirements.txt
       - snyk/scan:
           organization: dwp-dataworks
           severity-threshold: high
           target-file: requirements.txt
           project: '${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}-kafka-producer'
-          additional-arguments: "--command=python3"
 
   publish-github-release:
     docker:
