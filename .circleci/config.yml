@@ -2,7 +2,11 @@
 #
 # Check https://circleci.com/docs/2.0/language-python/ for more details
 #
-version: 2
+version: 2.1
+
+orbs:
+  snyk: snyk/snyk@0.0.8
+
 jobs:
   build:
     working_directory: ~/repo
@@ -30,6 +34,39 @@ jobs:
         root: artifacts
         paths:
         - kafka-producer-*.zip
+
+  snyk-pr:
+    docker:
+      - image: circleci/python:3.7.1
+    steps:
+      - checkout
+      - run:
+          # Snyk is supposed to do this automatically but it doesn't, so we manually install dependencies to be tested
+          name: Install dependencies
+          command: |
+            sudo pip install -r requirements.txt
+      - snyk/scan:
+          organization: dwp-dataworks
+          severity-threshold: high
+          target-file: requirements.txt
+          project: '${CIRCLE_PROJECT_REPONAME}/pr-kafka-producer'
+
+  snyk-master:
+    docker:
+      - image: circleci/python:3.7.1
+    steps:
+      - checkout
+      - run:
+          # Snyk is supposed to do this automatically but it doesn't, so we manually install dependencies to be tested
+          name: Install dependencies
+          command: |
+            sudo pip install -r requirements.txt
+      - snyk/scan:
+          organization: dwp-dataworks
+          severity-threshold: high
+          target-file: requirements.txt
+          project: '${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH}-kafka-producer'
+
   publish-github-release:
     docker:
     - image: cibuilds/github:0.10
@@ -47,11 +84,24 @@ jobs:
           VERSION=$(echo $LATEST_VERSION | awk -F. '{$NF = $NF + 1;} 1' | sed 's/ /./g')
           echo "ghr -t GITHUB_TOKEN -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -delete ${VERSION} ./artifacts/"
           ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -delete ${VERSION} ./artifacts/
+
 workflows:
   version: 2
-  build-and-deploy:
+  build-and-publish:
     jobs:
     - build
+    - snyk-pr:
+        requires:
+        - build
+        filters:
+          branches:
+            ignore: master
+    - snyk-master:
+        requires:
+          - build
+        filters:
+          branches:
+            only: master
     - publish-github-release:
         requires:
         - build
