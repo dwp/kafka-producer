@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import sys
-import happybase 
+import happybase
 import requests
 import thriftpy2
 import base64
@@ -28,7 +28,11 @@ logging.basicConfig(
 )
 logger.info("Logging at {} level".format(log_level.upper()))
 
-dynamo_table_name = os.environ["DYNAMO_DB_TABLE_NAME"] if "DYNAMO_DB_TABLE_NAME" in os.environ else "JobStatus"
+dynamo_table_name = (
+    os.environ["DYNAMO_DB_TABLE_NAME"]
+    if "DYNAMO_DB_TABLE_NAME" in os.environ
+    else "JobStatus"
+)
 
 true_strings = ["True", "true", "TRUE", "1"]
 
@@ -118,10 +122,22 @@ def handler(event, context):
     # Update dynamo db record
     update_job_status(message["job_id"], "RUNNING")
 
-    skip_encryption = "skip_encryption" in message and message["skip_encryption"] in true_strings
+    skip_encryption = (
+        "skip_encryption" in message and message["skip_encryption"] in true_strings
+    )
 
+    produce_x_number_of_messages = (
+        1 if "kafka_message_volume" not in message else message["kafka_message_volume"]
+    )
     produce_kafka_messages(
-        message["bucket"], message["job_id"], message["fixture_data"], message["key"], skip_encryption, single_topic, args
+        message["bucket"],
+        message["job_id"],
+        message["fixture_data"],
+        message["key"],
+        skip_encryption,
+        single_topic,
+        args,
+        produce_x_number_of_messages,
     )
 
     # Update status on dynamo db record
@@ -137,7 +153,16 @@ def get_s3_keys(bucket, prefix):
             yield content["Key"]
 
 
-def produce_kafka_messages(bucket, job_id, fixture_data, key_name, skip_encryption, single_topic, args):
+def produce_kafka_messages(
+    bucket,
+    job_id,
+    fixture_data,
+    key_name,
+    skip_encryption,
+    single_topic,
+    args,
+    message_volume,
+):
     # Process each fixture data dir, sending each file in it to kafka as a payload
     producer = KafkaProducer(
         bootstrap_servers=args.kafka_bootstrap_servers,
@@ -151,7 +176,7 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, skip_encrypti
         payload = s3_client.get_object(Bucket=bucket, Key=s3_key)["Body"].read()
         db_name = "missingDb"
         collection_name = "missingCollection"
-        dks_endpoint = os.path.join(args.dks_endpoint , "datakey")
+        dks_endpoint = os.path.join(args.dks_endpoint, "datakey")
 
         print(f"Payload received: {payload}")
 
@@ -171,11 +196,14 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, skip_encrypti
         if not skip_encryption:
             try:
                 data = json.loads(payload)
-                data["message"] = \
-                    encrypt_payload_and_update_message_using_key(args, data["message"]) \
-                    if args.encryption_key \
-                    else encrypt_payload_and_update_message_using_dks(dks_endpoint, data["message"])
-                encrypted_payload = json.dumps(data).encode('utf-8')
+                data["message"] = (
+                    encrypt_payload_and_update_message_using_key(args, data["message"])
+                    if args.encryption_key
+                    else encrypt_payload_and_update_message_using_dks(
+                        dks_endpoint, data["message"]
+                    )
+                )
+                encrypted_payload = json.dumps(data).encode("utf-8")
             except json.JSONDecodeError as err:
                 logger.warning(
                     f"File {s3_key} contains invalid JSON data so couldn't encrypt payload: Err={err.msg}"
@@ -186,13 +214,18 @@ def produce_kafka_messages(bucket, job_id, fixture_data, key_name, skip_encrypti
         else:
             topic_name = f"{args.topic_prefix}{job_id}_{db_name}.{collection_name}"
 
-        key_bytes = bytes(key_name, 'utf-8')
-        report = f"file {s3_key} to topic {topic_name} " \
-                 f"with key bytes {key_bytes} from key {key_name} " \
-                 f"at {args.kafka_bootstrap_servers} " \
-                 f"with payload {encrypted_payload}"
+        key_bytes = bytes(key_name, "utf-8")
+        report = (
+            f"file {s3_key} to topic {topic_name} "
+            f"with key bytes {key_bytes} from key {key_name} "
+            f"at {args.kafka_bootstrap_servers} "
+            f"with payload {encrypted_payload}"
+        )
         logger.info(f"Sending {report}")
-        producer.send(topic=topic_name, value=encrypted_payload, key=key_bytes)
+        logger.info(f"Producing {message_volume} messages to Kafka")
+        for message_count in range(1, int(message_volume) + 1):
+            producer.send(topic=topic_name, value=encrypted_payload, key=key_bytes)
+
         producer.flush()
         logger.info(f"Sent {report}")
 
@@ -202,9 +235,9 @@ def encrypt_payload_and_update_message_using_dks(dks_endpoint, message):
 
     content = requests.get(dks_endpoint).json()
 
-    encryption_key = content['plaintextDataKey']
-    encrypted_key = content['ciphertextDataKey']
-    master_key_id = content['dataKeyEncryptionKeyId']
+    encryption_key = content["plaintextDataKey"]
+    encrypted_key = content["ciphertextDataKey"]
+    master_key_id = content["dataKeyEncryptionKeyId"]
     logger.info(f"Encrypted dataKey '{encrypted_key}'")
 
     message["encryption"]["encryptedEncryptionKey"] = encrypted_key
@@ -216,11 +249,15 @@ def encrypt_payload_and_update_message_using_key(args, message):
     logger.info(f"Encrypting message using encryption key")
 
     if args.encrypted_encryption_key:
-        logger.info(f"Adding encrypted dataKey '{args.encrypted_encryption_key}' to message")
+        logger.info(
+            f"Adding encrypted dataKey '{args.encrypted_encryption_key}' to message"
+        )
         message["encryption"]["encryptedEncryptionKey"] = args.encrypted_encryption_key
 
     if args.master_encryption_key_id:
-        logger.info(f"Adding master key id '{args.master_encryption_key_id}' to message")
+        logger.info(
+            f"Adding master key id '{args.master_encryption_key_id}' to message"
+        )
         message["encryption"]["keyEncryptionKeyId"] = args.master_encryption_key_id
 
     return encrypt_payload(args.encryption_key, message)
@@ -228,17 +265,16 @@ def encrypt_payload_and_update_message_using_key(args, message):
 
 def encrypt_payload(encryption_key, message):
     try:
-        db_object = message['dbObject']
+        db_object = message["dbObject"]
         record_string = json.dumps(db_object)
-        [iv, encrypted_record] = encrypt(encryption_key,
-                                            record_string)
-        message['dbObject'] = encrypted_record.decode('ascii')
-        message['encryption']['initialisationVector'] = iv.decode('ascii')
+        [iv, encrypted_record] = encrypt(encryption_key, record_string)
+        message["dbObject"] = encrypted_record.decode("ascii")
+        message["encryption"]["initialisationVector"] = iv.decode("ascii")
     except json.JSONDecodeError as err:
         logger.warning(
             f"Message contains invalid JSON data in dbObject so could not encrypt: Err={err.msg}"
         )
-        message['encryption']['initialisationVector'] = "PHONEYVECTOR"
+        message["encryption"]["initialisationVector"] = "PHONEYVECTOR"
 
     return message
 
@@ -251,8 +287,7 @@ def encrypt(key, plaintext):
     counter = Counter.new(AES.block_size * 8, initial_value=iv_int)
     aes = AES.new(base64.b64decode(key), AES.MODE_CTR, counter=counter)
     ciphertext = aes.encrypt(plaintext.encode("utf8"))
-    return (base64.b64encode(initialisation_vector),
-            base64.b64encode(ciphertext))
+    return (base64.b64encode(initialisation_vector), base64.b64encode(ciphertext))
 
 
 def get_message(event):
@@ -276,7 +311,9 @@ def update_job_status(job_id, job_status):
     dynamodb = boto3.resource("dynamodb")
     table = dynamodb.Table(dynamo_table_name)
 
-    logger.info(f"Setting dynamo status to {job_status} for job id {job_id} in table {dynamo_table_name}")
+    logger.info(
+        f"Setting dynamo status to {job_status} for job id {job_id} in table {dynamo_table_name}"
+    )
 
     response = table.update_item(
         Key={"JobId": job_id},
