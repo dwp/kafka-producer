@@ -23,7 +23,7 @@ logger.setLevel(logging.getLevelName(log_level.upper()))
 logging.basicConfig(
     stream=sys.stdout,
     format="%(asctime)s %(levelname)s %(module)s "
-           "%(process)s[%(thread)s] %(message)s",
+    "%(process)s[%(thread)s] %(message)s",
 )
 logger.info("Logging at {} level".format(log_level.upper()))
 
@@ -122,7 +122,7 @@ def handler(event, context):
     update_job_status(message["job_id"], "RUNNING")
 
     skip_encryption = (
-            "skip_encryption" in message and message["skip_encryption"] in true_strings
+        "skip_encryption" in message and message["skip_encryption"] in true_strings
     )
 
     produce_x_number_of_messages = (
@@ -141,7 +141,7 @@ def handler(event, context):
         single_topic,
         args,
         produce_x_number_of_messages,
-        kafka_random_key
+        kafka_random_key,
     )
 
     # Update status on dynamo db record
@@ -158,15 +158,15 @@ def get_s3_keys(bucket, prefix):
 
 
 def produce_kafka_messages(
-        bucket,
-        job_id,
-        fixture_data,
-        key_name,
-        skip_encryption,
-        single_topic,
-        args,
-        message_volume,
-        randomise_kafka_key,
+    bucket,
+    job_id,
+    fixture_data,
+    key_name,
+    skip_encryption,
+    single_topic,
+    args,
+    message_volume,
+    randomise_kafka_key,
 ):
     # Process each fixture data dir, sending each file in it to kafka as a payload
     producer = KafkaProducer(
