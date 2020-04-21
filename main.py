@@ -11,6 +11,7 @@ import requests
 import thriftpy2
 import base64
 import binascii
+import uuid
 
 from Crypto import Random
 from Crypto.Cipher import AES
@@ -24,7 +25,7 @@ logger.setLevel(logging.getLevelName(log_level.upper()))
 logging.basicConfig(
     stream=sys.stdout,
     format="%(asctime)s %(levelname)s %(module)s "
-    "%(process)s[%(thread)s] %(message)s",
+           "%(process)s[%(thread)s] %(message)s",
 )
 logger.info("Logging at {} level".format(log_level.upper()))
 
@@ -123,12 +124,16 @@ def handler(event, context):
     update_job_status(message["job_id"], "RUNNING")
 
     skip_encryption = (
-        "skip_encryption" in message and message["skip_encryption"] in true_strings
+            "skip_encryption" in message and message["skip_encryption"] in true_strings
     )
 
     produce_x_number_of_messages = (
         1 if "kafka_message_volume" not in message else message["kafka_message_volume"]
     )
+    kafka_random_key = (
+        False if "kafka_random_key" not in message else bool(message["kafka_random_key"])
+    )
+
     produce_kafka_messages(
         message["bucket"],
         message["job_id"],
@@ -138,6 +143,7 @@ def handler(event, context):
         single_topic,
         args,
         produce_x_number_of_messages,
+        kafka_random_key
     )
 
     # Update status on dynamo db record
@@ -154,14 +160,15 @@ def get_s3_keys(bucket, prefix):
 
 
 def produce_kafka_messages(
-    bucket,
-    job_id,
-    fixture_data,
-    key_name,
-    skip_encryption,
-    single_topic,
-    args,
-    message_volume,
+        bucket,
+        job_id,
+        fixture_data,
+        key_name,
+        skip_encryption,
+        single_topic,
+        args,
+        message_volume,
+        randomise_kafka_key,
 ):
     # Process each fixture data dir, sending each file in it to kafka as a payload
     producer = KafkaProducer(
@@ -214,16 +221,19 @@ def produce_kafka_messages(
         else:
             topic_name = f"{args.topic_prefix}{job_id}_{db_name}.{collection_name}"
 
-        key_bytes = bytes(key_name, "utf-8")
         report = (
             f"file {s3_key} to topic {topic_name} "
-            f"with key bytes {key_bytes} from key {key_name} "
             f"at {args.kafka_bootstrap_servers} "
             f"with payload {encrypted_payload}"
         )
         logger.info(f"Sending {report}")
         logger.info(f"Producing {message_volume} messages to Kafka")
         for message_count in range(1, int(message_volume) + 1):
+            random_uuid = uuid.uuid1().node
+            key_with_random = random_uuid + key_name if randomise_kafka_key else key_name
+            key_bytes = bytes(key_with_random, "utf-8")
+
+            logger.info(f"Sending message for {key_with_random}")
             producer.send(topic=topic_name, value=encrypted_payload, key=key_bytes)
 
         producer.flush()
