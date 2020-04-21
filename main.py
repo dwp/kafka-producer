@@ -131,7 +131,7 @@ def handler(event, context):
         1 if "kafka_message_volume" not in message else message["kafka_message_volume"]
     )
     kafka_random_key = (
-        False if "kafka_random_key" not in message else bool(message["kafka_random_key"])
+        False if "kafka_random_key" not in message else message["kafka_random_key"]
     )
 
     produce_kafka_messages(
@@ -230,10 +230,11 @@ def produce_kafka_messages(
         logger.info(f"Randomise Kafka keys is set to {randomise_kafka_key}")
         logger.info(f"Producing {message_volume} messages to Kafka")
         for message_count in range(1, int(message_volume) + 1):
-            random_uuid = uuid.uuid1().node
-            key_with_random = random_uuid + key_name if randomise_kafka_key else key_name
-            key_bytes = bytes(key_with_random, "utf-8")
+            if randomise_kafka_key:
+                random_uuid = uuid.uuid1().node
+                key_name = random_uuid + key_name
 
+            key_bytes = bytes(key_name, "utf-8")
             logger.info(f"Sending message for {key_with_random}")
             producer.send(topic=topic_name, value=encrypted_payload, key=key_bytes)
 
