@@ -229,11 +229,13 @@ def produce_kafka_messages(
         logger.info(f"Producing {message_volume} messages to Kafka")
         for message_count in range(1, int(message_volume) + 1):
             if randomise_kafka_key:
-                random_uuid = uuid.uuid1().node
-                key_name = random_uuid + key_name
+                random_uuid = str(uuid.uuid1())
+                key_name_modified = random_uuid + "/" + key_name
+            else:
+                key_name_modified = key_name
 
-            key_bytes = bytes(key_name, "utf-8")
-            logger.info(f"Sending message for {key_with_random}")
+            key_bytes = bytes(key_name_modified, "utf-8")
+            logger.info(f"Sending message for {key_name_modified}")
             producer.send(topic=topic_name, value=encrypted_payload, key=key_bytes)
 
         producer.flush()
