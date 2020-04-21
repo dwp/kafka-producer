@@ -227,6 +227,7 @@ def produce_kafka_messages(
             f"with payload {encrypted_payload}"
         )
         logger.info(f"Sending {report}")
+        logger.info(f"Randomise Kafka keys is set to {randomise_kafka_key}")
         logger.info(f"Producing {message_volume} messages to Kafka")
         for message_count in range(1, int(message_volume) + 1):
             random_uuid = uuid.uuid1().node
