@@ -6,11 +6,10 @@ import json
 import logging
 import os
 import sys
-import happybase
 import requests
-import thriftpy2
 import base64
 import binascii
+import uuid
 
 from Crypto import Random
 from Crypto.Cipher import AES
@@ -129,6 +128,10 @@ def handler(event, context):
     produce_x_number_of_messages = (
         1 if "kafka_message_volume" not in message else message["kafka_message_volume"]
     )
+    kafka_random_key = (
+        False if "kafka_random_key" not in message else message["kafka_random_key"]
+    )
+
     produce_kafka_messages(
         message["bucket"],
         message["job_id"],
@@ -138,6 +141,7 @@ def handler(event, context):
         single_topic,
         args,
         produce_x_number_of_messages,
+        kafka_random_key,
     )
 
     # Update status on dynamo db record
@@ -162,6 +166,7 @@ def produce_kafka_messages(
     single_topic,
     args,
     message_volume,
+    randomise_kafka_key,
 ):
     # Process each fixture data dir, sending each file in it to kafka as a payload
     producer = KafkaProducer(
@@ -214,16 +219,23 @@ def produce_kafka_messages(
         else:
             topic_name = f"{args.topic_prefix}{job_id}_{db_name}.{collection_name}"
 
-        key_bytes = bytes(key_name, "utf-8")
         report = (
             f"file {s3_key} to topic {topic_name} "
-            f"with key bytes {key_bytes} from key {key_name} "
             f"at {args.kafka_bootstrap_servers} "
             f"with payload {encrypted_payload}"
         )
         logger.info(f"Sending {report}")
+        logger.info(f"Randomise Kafka keys is set to {randomise_kafka_key}")
         logger.info(f"Producing {message_volume} messages to Kafka")
         for message_count in range(1, int(message_volume) + 1):
+            if randomise_kafka_key:
+                random_uuid = str(uuid.uuid1())
+                key_name_modified = random_uuid + "/" + key_name
+            else:
+                key_name_modified = key_name
+
+            key_bytes = bytes(key_name_modified, "utf-8")
+            logger.info(f"Sending message for {key_name_modified}")
             producer.send(topic=topic_name, value=encrypted_payload, key=key_bytes)
 
         producer.flush()
