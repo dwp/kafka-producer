@@ -132,17 +132,23 @@ def handler(event, context):
         False if "kafka_random_key" not in message else message["kafka_random_key"]
     )
 
-    produce_kafka_messages(
-        message["bucket"],
-        message["job_id"],
-        message["fixture_data"],
-        message["key"],
-        skip_encryption,
-        single_topic,
-        args,
-        produce_x_number_of_messages,
-        kafka_random_key,
-    )
+    try:
+        produce_kafka_messages(
+            message["bucket"],
+            message["job_id"],
+            message["fixture_data"],
+            message["key"],
+            skip_encryption,
+            single_topic,
+            args,
+            produce_x_number_of_messages,
+            kafka_random_key,
+        )
+    except Exception as e:
+        logger.error(f"Exception occured when producing Kafka messages: '{e}'")
+        update_job_status(message["job_id"], "FAILED")
+        raise e
+
 
     # Update status on dynamo db record
     update_job_status(message["job_id"], "SUCCESS")
