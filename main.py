@@ -129,7 +129,7 @@ def handler(event, context):
         1 if "kafka_message_volume" not in message else message["kafka_message_volume"]
     )
     kafka_random_key = (
-        False if "kafka_random_key" not in message else message["kafka_random_key"]
+        False if "kafka_random_key" not in message else (message["kafka_random_key"].lower() == "true")
     )
 
     try:

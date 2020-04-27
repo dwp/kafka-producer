@@ -112,3 +112,4 @@ event.json
 
 .idea
 *.iml
+.DS_Store
