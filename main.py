@@ -16,16 +16,6 @@ from Crypto.Cipher import AES
 from Crypto.Util import Counter
 from kafka import KafkaProducer
 
-# Initialise logging
-logger = logging.getLogger(__name__)
-log_level = os.environ["LOG_LEVEL"] if "LOG_LEVEL" in os.environ else "ERROR"
-logger.setLevel(logging.getLevelName(log_level.upper()))
-logging.basicConfig(
-    stream=sys.stdout,
-    format="%(asctime)s %(levelname)s %(module)s "
-    "%(process)s[%(thread)s] %(message)s",
-)
-logger.info("Logging at {} level".format(log_level.upper()))
 
 dynamo_table_name = (
     os.environ["DYNAMO_DB_TABLE_NAME"]
@@ -33,7 +23,40 @@ dynamo_table_name = (
     else "JobStatus"
 )
 
+
 true_strings = ["True", "true", "TRUE", "1"]
+logger_level = os.environ["LOG_LEVEL"] if "LOG_LEVEL" in os.environ else "ERROR"
+
+
+def setup_logging(logger_level):
+    the_logger = logging.getLogger()
+    for old_handler in the_logger.handlers:
+        the_logger.removeHandler(old_handler)
+    
+    new_handler = logging.StreamHandler(sys.stdout)
+
+    hostname = socket.gethostname()
+
+    json_format = (
+        '{ "timestamp": "%(asctime)s", "log_level": "%(levelname)s", "message": "%(message)s", ' +
+        f'"environment": "{args.environment}", "application": "{args.application}", '
+        f'"module": "%(module)s", "process": "%(process)s", '
+        f'"thread": "[%(thread)s]", "hostname": "{hostname}" }} '
+    )
+
+    new_handler.setFormatter(logging.Formatter(json_format))
+    the_logger.addHandler(new_handler)
+    new_level = logging.getLevelName(logger_level.upper())
+    the_logger.setLevel(new_level)
+
+    if the_logger.isEnabledFor(logging.DEBUG):
+        boto3.set_stream_logger()
+        the_logger.debug(f'Using boto3", "version": "{boto3.__version__}')
+    
+    return the_logger
+
+
+setup_logging(logger_level)
 
 
 def get_parameters():
@@ -101,16 +124,12 @@ def get_parameters():
     return _args
 
 
+args = get_parameters()
+
+
 def handler(event, context):
-    args = get_parameters()
-    logger.info(args)
-
-    if logger.isEnabledFor(logging.DEBUG):
-        # Log everything from boto3
-        boto3.set_stream_logger()
-        logger.debug(f"Using boto3 {boto3.__version__}")
-
-    logger.info(event)
+    event_parsed = json.loads(event)
+    logger.info(f'Event received by lambda", "event": "{json.dumps(event_parsed)}')
 
     message = get_message(event)
 
@@ -145,7 +164,7 @@ def handler(event, context):
             kafka_random_key,
         )
     except Exception as e:
-        logger.error(f"Exception occured when producing Kafka messages: '{e}'")
+        logger.error(f'Exception occured when producing Kafka messages", "exception": "{e}')
         update_job_status(message["job_id"], "FAILED")
         raise e
 
@@ -157,7 +176,7 @@ def handler(event, context):
 def get_s3_keys(bucket, prefix):
     s3_paginator = boto3.client("s3").get_paginator("list_objects_v2")
 
-    logger.debug(f"Processing prefix: {prefix}")
+    logger.debug(f'Processing s3 prefix", "s3_prefix": "{prefix}')
     for page in s3_paginator.paginate(Bucket=bucket, Prefix=prefix):
         for content in page.get("Contents", ()):
             yield content["Key"]
@@ -182,14 +201,12 @@ def produce_kafka_messages(
 
     s3_client = boto3.client("s3")
     for s3_key in fixture_data:
-        logger.info(f"Processing key: {s3_key}")
-        logger.info(f"Dks endpoint: {args.dks_endpoint}")
+        logger.info(f'Processing s3 key", "s3_key": "{s3_key}", "dks_endpoint": "{args.dks_endpoint}')
+
         payload = s3_client.get_object(Bucket=bucket, Key=s3_key)["Body"].read()
         db_name = "missingDb"
         collection_name = "missingCollection"
         dks_endpoint = os.path.join(args.dks_endpoint, "datakey")
-
-        print(f"Payload received: {payload}")
 
         try:
             data = json.loads(payload)
@@ -198,9 +215,11 @@ def produce_kafka_messages(
                 db_name = message["db"]
             if "collection" in message:
                 collection_name = message["collection"]
+            logger.info(f'Payload parsed", "payload": "{json.dumps(data)}", "dks_endpoint_full": "{dks_endpoint}", ' + \
+                f'"db_name": "{db_name}", "collection_name": "{collection_name}')
         except json.JSONDecodeError as err:
             logger.warning(
-                f"File {s3_key} contains invalid JSON data so couldn't get db/collection: Err={err.msg}"
+                f'Payload contains invalid JSON data so could not parse db or collection", "payload": "{payload}", "error_message": "{err.msg}'
             )
 
         encrypted_payload = payload
@@ -217,7 +236,7 @@ def produce_kafka_messages(
                 encrypted_payload = json.dumps(data).encode("utf-8")
             except json.JSONDecodeError as err:
                 logger.warning(
-                    f"File {s3_key} contains invalid JSON data so couldn't encrypt payload: Err={err.msg}"
+                    f'Payload contains invalid JSON data so could be encrypted", "payload": "{payload}", "error_message": "{err.msg}'
                 )
 
         if single_topic:
@@ -225,14 +244,10 @@ def produce_kafka_messages(
         else:
             topic_name = f"{args.topic_prefix}{job_id}_{db_name}.{collection_name}"
 
-        report = (
-            f"file {s3_key} to topic {topic_name} "
-            f"at {args.kafka_bootstrap_servers} "
-            f"with payload {encrypted_payload}"
-        )
-        logger.info(f"Sending {report}")
-        logger.info(f"Randomise Kafka keys is set to {randomise_kafka_key}")
-        logger.info(f"Producing {message_volume} messages to Kafka")
+        logger.info(f'Generating and sending messages", "s3_key": "{s3_key}", "topic_name": "{topic_name}", ' + \
+                f'"kafka_bootstrap_servers": "{args.kafka_bootstrap_servers}", "encrypted_payload": "{encrypted_payload}", ' + \
+                f'"randomise_kafka_key": "{randomise_kafka_key}", "message_volume": "{message_volume}", "dks_endpoint_full": "{dks_endpoint}')
+
         for message_count in range(1, int(message_volume) + 1):
             if randomise_kafka_key:
                 random_uuid = str(uuid.uuid1())
@@ -241,40 +256,50 @@ def produce_kafka_messages(
                 key_name_modified = key_name
 
             key_bytes = bytes(key_name_modified, "utf-8")
-            logger.info(f"Sending message for {key_name_modified}")
+
+            logger.info(f'Generating and sending messages", "s3_key": "{s3_key}", "topic_name": "{topic_name}", ' + \
+                    f'"kafka_bootstrap_servers": "{args.kafka_bootstrap_servers}", "encrypted_payload": "{encrypted_payload}", ' + \
+                    f'"randomise_kafka_key": "{randomise_kafka_key}", "message_volume": "{message_volume}", "dks_endpoint_full": "{dks_endpoint}", ' + \
+                    f'"key_bytes": "{key_bytes}", "message_count": "{message_count}')
+
             producer.send(topic=topic_name, value=encrypted_payload, key=key_bytes)
 
         producer.flush()
-        logger.info(f"Sent {report}")
+
+        logger.info(f'Messages sent", "s3_key": "{s3_key}", "topic_name": "{topic_name}", ' + \
+                f'"kafka_bootstrap_servers": "{args.kafka_bootstrap_servers}", "encrypted_payload": "{encrypted_payload}", ' + \
+                f'"randomise_kafka_key": "{randomise_kafka_key}", "message_volume": "{message_volume}", "dks_endpoint_full": "{dks_endpoint}')
 
 
 def encrypt_payload_and_update_message_using_dks(dks_endpoint, message):
-    logger.info(f"Encrypting message using endpoint '{dks_endpoint}'")
+    logger.info(f'Encrypting message using dks", "message": "{json.dumps(message)}", "dks_endpoint": "{dks_endpoint}')
 
     content = requests.get(dks_endpoint).json()
 
     encryption_key = content["plaintextDataKey"]
     encrypted_key = content["ciphertextDataKey"]
     master_key_id = content["dataKeyEncryptionKeyId"]
-    logger.info(f"Encrypted dataKey '{encrypted_key}'")
 
     message["encryption"]["encryptedEncryptionKey"] = encrypted_key
     message["encryption"]["keyEncryptionKeyId"] = master_key_id
+
+    logger.info(f'Retrieved key from dks", "encrypted_key": "{encrypted_key}", "master_key_id": "{master_key_id}", "dks_endpoint": "{dks_endpoint}')
+
     return encrypt_payload(encryption_key, message)
 
 
 def encrypt_payload_and_update_message_using_key(args, message):
-    logger.info(f"Encrypting message using encryption key")
+    logger.info(f'Encrypting message using encryption key", "message": "{json.dumps(message)}')
 
     if args.encrypted_encryption_key:
         logger.info(
-            f"Adding encrypted dataKey '{args.encrypted_encryption_key}' to message"
+            f'Adding encrypted dataKey to message", "message": "{json.dumps(message)}", "encrypted_encryption_key": "{args.encrypted_encryption_key}'
         )
         message["encryption"]["encryptedEncryptionKey"] = args.encrypted_encryption_key
 
     if args.master_encryption_key_id:
         logger.info(
-            f"Adding master key id '{args.master_encryption_key_id}' to message"
+            f'Adding master key id to message", "message": "{json.dumps(message)}", "master_encryption_key_id": "{args.master_encryption_key_id}'
         )
         message["encryption"]["keyEncryptionKeyId"] = args.master_encryption_key_id
 
@@ -288,9 +313,12 @@ def encrypt_payload(encryption_key, message):
         [iv, encrypted_record] = encrypt(encryption_key, record_string)
         message["dbObject"] = encrypted_record.decode("ascii")
         message["encryption"]["initialisationVector"] = iv.decode("ascii")
+        logger.info(
+            f'Payload encrypted", "encrypted_message": "{json.dumps(message)}'
+        )
     except json.JSONDecodeError as err:
         logger.warning(
-            f"Message contains invalid JSON data in dbObject so could not encrypt: Err={err.msg}"
+            f'Message contains invalid JSON data in dbObject so could not be encrypted", "error_message": "{err.msg}", "initialisation_vector": "PHONEYVECTOR'
         )
         message["encryption"]["initialisationVector"] = "PHONEYVECTOR"
 
@@ -298,19 +326,21 @@ def encrypt_payload(encryption_key, message):
 
 
 def encrypt(key, plaintext):
-    logger.info(f"Encrypting payload of '{plaintext}' using key '{key}'")
+    logger.info(f'Encrypting payload using key", "unencrypted_payload": "{plaintext}", "encryption_key": "{key}')
 
     initialisation_vector = Random.new().read(AES.block_size)
     iv_int = int(binascii.hexlify(initialisation_vector), 16)
     counter = Counter.new(AES.block_size * 8, initial_value=iv_int)
     aes = AES.new(base64.b64decode(key), AES.MODE_CTR, counter=counter)
     ciphertext = aes.encrypt(plaintext.encode("utf8"))
+
     return (base64.b64encode(initialisation_vector), base64.b64encode(ciphertext))
 
 
 def get_message(event):
     message = json.loads(event["Records"][0]["Sns"]["Message"])
-    logger.debug(message)
+    logger.debug(f'Message parsed from event", "message": "{json.dumps(message)}')
+
     required_message_keys = ["job_id", "bucket", "fixture_data", "key"]
     missing_keys = []
     for required_message_key in required_message_keys:
@@ -330,7 +360,7 @@ def update_job_status(job_id, job_status):
     table = dynamodb.Table(dynamo_table_name)
 
     logger.info(
-        f"Setting dynamo status to {job_status} for job id {job_id} in table {dynamo_table_name}"
+        f'Setting dynamo db status of job", "job_status": "{job_status}", "job_id": "{job_id}", "dynamo_table_name": "{dynamo_table_name}'
     )
 
     response = table.update_item(
@@ -340,17 +370,19 @@ def update_job_status(job_id, job_status):
         ReturnValues="UPDATED_NEW",
     )
 
-    logger.info(f"Dynamo response was {response} for job id {job_id}")
+    logger.debug(
+        f'Dynamo db status for job updated", "response": "{response}", "job_id": "{job_id}", "dynamo_table_name": "{dynamo_table_name}'
+    )
+
     return response
 
 
 if __name__ == "__main__":
-    args = get_parameters()
     try:
         boto3.setup_default_session(
             profile_name=args.aws_profile, region_name=args.aws_region
         )
         json_content = json.loads(open("event.json", "r").read())
         handler(json_content, None)
-    except Exception as e:
-        logger.error(e)
+    except Exception as err:
+        logger.error(f'Exception occurred for invocation", "error_message": "{err.msg}')
