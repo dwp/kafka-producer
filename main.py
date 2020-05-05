@@ -56,9 +56,6 @@ def setup_logging(logger_level):
     return the_logger
 
 
-setup_logging(logger_level)
-
-
 def get_parameters():
     parser = argparse.ArgumentParser(
         description="Convert S3 objects into Kafka messages"
@@ -105,6 +102,16 @@ def get_parameters():
     if "MASTER_ENCRYPTION_KEY_ID" in os.environ:
         _args.master_encryption_key_id = os.environ["MASTER_ENCRYPTION_KEY_ID"]
 
+    if "ENVIRONMENT" in os.environ:
+        _args.environment = os.environ["ENVIRONMENT"]
+    else:
+        _args.environment = "NOT_SET"
+
+    if "APPLICATION" in os.environ:
+        _args.application = os.environ["APPLICATION"]
+    else:
+        _args.application = "NOT_SET"
+
     required_args = ["kafka_bootstrap_servers", "ssl_broker"]
     missing_args = []
     for required_message_key in required_args:
@@ -125,6 +132,7 @@ def get_parameters():
 
 
 args = get_parameters()
+setup_logging(logger_level)
 
 
 def handler(event, context):
