@@ -304,8 +304,10 @@ def produce_kafka_messages(
 
 
 def encrypt_payload_and_update_message_using_dks(dks_endpoint, message):
+    message_string = get_escaped_json_string(message)
+
     logger.info(
-        f'Encrypting message using dks", "message": "{json.dumps(message)}", "dks_endpoint": "{dks_endpoint}'
+        f'Encrypting message using dks", "message_received": {message_string}, "dks_endpoint": "{dks_endpoint}'
     )
 
     content = requests.get(dks_endpoint).json()
@@ -342,13 +344,13 @@ def encrypt_payload_and_update_message_using_key(args, message):
 
     if args.encrypted_encryption_key:
         logger.info(
-            f'Adding encrypted dataKey to message", "message": {message_string}, "encrypted_encryption_key": "{args.encrypted_encryption_key}'
+            f'Adding encrypted dataKey to message", "message_received": {message_string}, "encrypted_encryption_key": "{args.encrypted_encryption_key}'
         )
         message["encryption"]["encryptedEncryptionKey"] = args.encrypted_encryption_key
 
     if args.master_encryption_key_id:
         logger.info(
-            f'Adding master key id to message", "message": "{message_string}", "master_encryption_key_id": "{args.master_encryption_key_id}'
+            f'Adding master key id to message", "message_received": {message_string}, "master_encryption_key_id": "{args.master_encryption_key_id}'
         )
         message["encryption"]["keyEncryptionKeyId"] = args.master_encryption_key_id
 
