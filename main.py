@@ -10,6 +10,8 @@ import requests
 import base64
 import binascii
 import uuid
+import socket
+
 
 from Crypto import Random
 from Crypto.Cipher import AES
