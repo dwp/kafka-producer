@@ -130,7 +130,7 @@ def get_parameters():
 
 
 args = get_parameters()
-setup_logging(logger_level)
+logger = setup_logging(logger_level)
 
 
 def handler(event, context):
