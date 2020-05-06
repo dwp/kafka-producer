@@ -32,13 +32,13 @@ def setup_logging(logger_level):
     the_logger = logging.getLogger()
     for old_handler in the_logger.handlers:
         the_logger.removeHandler(old_handler)
-    
+
     new_handler = logging.StreamHandler(sys.stdout)
 
     hostname = socket.gethostname()
 
     json_format = (
-        '{ "timestamp": "%(asctime)s", "log_level": "%(levelname)s", "message": "%(message)s", ' +
+        '{ "timestamp": "%(asctime)s", "log_level": "%(levelname)s", "message": "%(message)s", '
         f'"environment": "{args.environment}", "application": "{args.application}", '
         f'"module": "%(module)s", "process": "%(process)s", '
         f'"thread": "[%(thread)s]", "hostname": "{hostname}" }} '
@@ -52,7 +52,7 @@ def setup_logging(logger_level):
     if the_logger.isEnabledFor(logging.DEBUG):
         boto3.set_stream_logger()
         the_logger.debug(f'Using boto3", "version": "{boto3.__version__}')
-    
+
     return the_logger
 
 
@@ -71,6 +71,8 @@ def get_parameters():
     parser.add_argument("--encryption-key", default="")
     parser.add_argument("--encrypted-encryption-key", default="")
     parser.add_argument("--master-encryption-key-id", default="")
+    parser.add_argument("--environment", default="")
+    parser.add_argument("--application", default="")
 
     _args = parser.parse_args()
 
@@ -104,13 +106,9 @@ def get_parameters():
 
     if "ENVIRONMENT" in os.environ:
         _args.environment = os.environ["ENVIRONMENT"]
-    else:
-        _args.environment = "NOT_SET"
 
     if "APPLICATION" in os.environ:
         _args.application = os.environ["APPLICATION"]
-    else:
-        _args.application = "NOT_SET"
 
     required_args = ["kafka_bootstrap_servers", "ssl_broker"]
     missing_args = []
@@ -156,7 +154,9 @@ def handler(event, context):
         1 if "kafka_message_volume" not in message else message["kafka_message_volume"]
     )
     kafka_random_key = (
-        False if "kafka_random_key" not in message else (message["kafka_random_key"].lower() == "true")
+        False
+        if "kafka_random_key" not in message
+        else (message["kafka_random_key"].lower() == "true")
     )
 
     try:
@@ -172,10 +172,11 @@ def handler(event, context):
             kafka_random_key,
         )
     except Exception as e:
-        logger.error(f'Exception occured when producing Kafka messages", "exception": "{e}')
+        logger.error(
+            f'Exception occured when producing Kafka messages", "exception": "{e}'
+        )
         update_job_status(message["job_id"], "FAILED")
         raise e
-
 
     # Update status on dynamo db record
     update_job_status(message["job_id"], "SUCCESS")
@@ -209,7 +210,9 @@ def produce_kafka_messages(
 
     s3_client = boto3.client("s3")
     for s3_key in fixture_data:
-        logger.info(f'Processing s3 key", "s3_key": "{s3_key}", "dks_endpoint": "{args.dks_endpoint}')
+        logger.info(
+            f'Processing s3 key", "s3_key": "{s3_key}", "dks_endpoint": "{args.dks_endpoint}'
+        )
 
         payload = s3_client.get_object(Bucket=bucket, Key=s3_key)["Body"].read()
         db_name = "missingDb"
@@ -223,8 +226,10 @@ def produce_kafka_messages(
                 db_name = message["db"]
             if "collection" in message:
                 collection_name = message["collection"]
-            logger.info(f'Payload parsed", "payload": "{json.dumps(data)}", "dks_endpoint_full": "{dks_endpoint}", ' + \
-                f'"db_name": "{db_name}", "collection_name": "{collection_name}')
+            logger.info(
+                f'Payload parsed", "payload": "{json.dumps(data)}", "dks_endpoint_full": "{dks_endpoint}", '
+                + f'"db_name": "{db_name}", "collection_name": "{collection_name}'
+            )
         except json.JSONDecodeError as err:
             logger.warning(
                 f'Payload contains invalid JSON data so could not parse db or collection", "payload": "{payload}", "error_message": "{err.msg}'
@@ -252,9 +257,11 @@ def produce_kafka_messages(
         else:
             topic_name = f"{args.topic_prefix}{job_id}_{db_name}.{collection_name}"
 
-        logger.info(f'Generating and sending messages", "s3_key": "{s3_key}", "topic_name": "{topic_name}", ' + \
-                f'"kafka_bootstrap_servers": "{args.kafka_bootstrap_servers}", "encrypted_payload": "{encrypted_payload}", ' + \
-                f'"randomise_kafka_key": "{randomise_kafka_key}", "message_volume": "{message_volume}", "dks_endpoint_full": "{dks_endpoint}')
+        logger.info(
+            f'Generating and sending messages", "s3_key": "{s3_key}", "topic_name": "{topic_name}", '
+            + f'"kafka_bootstrap_servers": "{args.kafka_bootstrap_servers}", "encrypted_payload": "{encrypted_payload}", '
+            + f'"randomise_kafka_key": "{randomise_kafka_key}", "message_volume": "{message_volume}", "dks_endpoint_full": "{dks_endpoint}'
+        )
 
         for message_count in range(1, int(message_volume) + 1):
             if randomise_kafka_key:
@@ -265,22 +272,28 @@ def produce_kafka_messages(
 
             key_bytes = bytes(key_name_modified, "utf-8")
 
-            logger.info(f'Generating and sending messages", "s3_key": "{s3_key}", "topic_name": "{topic_name}", ' + \
-                    f'"kafka_bootstrap_servers": "{args.kafka_bootstrap_servers}", "encrypted_payload": "{encrypted_payload}", ' + \
-                    f'"randomise_kafka_key": "{randomise_kafka_key}", "message_volume": "{message_volume}", "dks_endpoint_full": "{dks_endpoint}", ' + \
-                    f'"key_bytes": "{key_bytes}", "message_count": "{message_count}')
+            logger.info(
+                f'Generating and sending messages", "s3_key": "{s3_key}", "topic_name": "{topic_name}", '
+                + f'"kafka_bootstrap_servers": "{args.kafka_bootstrap_servers}", "encrypted_payload": "{encrypted_payload}", '
+                + f'"randomise_kafka_key": "{randomise_kafka_key}", "message_volume": "{message_volume}", "dks_endpoint_full": "{dks_endpoint}", '
+                + f'"key_bytes": "{key_bytes}", "message_count": "{message_count}'
+            )
 
             producer.send(topic=topic_name, value=encrypted_payload, key=key_bytes)
 
         producer.flush()
 
-        logger.info(f'Messages sent", "s3_key": "{s3_key}", "topic_name": "{topic_name}", ' + \
-                f'"kafka_bootstrap_servers": "{args.kafka_bootstrap_servers}", "encrypted_payload": "{encrypted_payload}", ' + \
-                f'"randomise_kafka_key": "{randomise_kafka_key}", "message_volume": "{message_volume}", "dks_endpoint_full": "{dks_endpoint}')
+        logger.info(
+            f'Messages sent", "s3_key": "{s3_key}", "topic_name": "{topic_name}", '
+            + f'"kafka_bootstrap_servers": "{args.kafka_bootstrap_servers}", "encrypted_payload": "{encrypted_payload}", '
+            + f'"randomise_kafka_key": "{randomise_kafka_key}", "message_volume": "{message_volume}", "dks_endpoint_full": "{dks_endpoint}'
+        )
 
 
 def encrypt_payload_and_update_message_using_dks(dks_endpoint, message):
-    logger.info(f'Encrypting message using dks", "message": "{json.dumps(message)}", "dks_endpoint": "{dks_endpoint}')
+    logger.info(
+        f'Encrypting message using dks", "message": "{json.dumps(message)}", "dks_endpoint": "{dks_endpoint}'
+    )
 
     content = requests.get(dks_endpoint).json()
 
@@ -291,13 +304,17 @@ def encrypt_payload_and_update_message_using_dks(dks_endpoint, message):
     message["encryption"]["encryptedEncryptionKey"] = encrypted_key
     message["encryption"]["keyEncryptionKeyId"] = master_key_id
 
-    logger.info(f'Retrieved key from dks", "encrypted_key": "{encrypted_key}", "master_key_id": "{master_key_id}", "dks_endpoint": "{dks_endpoint}')
+    logger.info(
+        f'Retrieved key from dks", "encrypted_key": "{encrypted_key}", "master_key_id": "{master_key_id}", "dks_endpoint": "{dks_endpoint}'
+    )
 
     return encrypt_payload(encryption_key, message)
 
 
 def encrypt_payload_and_update_message_using_key(args, message):
-    logger.info(f'Encrypting message using encryption key", "message": "{json.dumps(message)}')
+    logger.info(
+        f'Encrypting message using encryption key", "message": "{json.dumps(message)}'
+    )
 
     if args.encrypted_encryption_key:
         logger.info(
@@ -321,9 +338,7 @@ def encrypt_payload(encryption_key, message):
         [iv, encrypted_record] = encrypt(encryption_key, record_string)
         message["dbObject"] = encrypted_record.decode("ascii")
         message["encryption"]["initialisationVector"] = iv.decode("ascii")
-        logger.info(
-            f'Payload encrypted", "encrypted_message": "{json.dumps(message)}'
-        )
+        logger.info(f'Payload encrypted", "encrypted_message": "{json.dumps(message)}')
     except json.JSONDecodeError as err:
         logger.warning(
             f'Message contains invalid JSON data in dbObject so could not be encrypted", "error_message": "{err.msg}", "initialisation_vector": "PHONEYVECTOR'
@@ -334,7 +349,9 @@ def encrypt_payload(encryption_key, message):
 
 
 def encrypt(key, plaintext):
-    logger.info(f'Encrypting payload using key", "unencrypted_payload": "{plaintext}", "encryption_key": "{key}')
+    logger.info(
+        f'Encrypting payload using key", "unencrypted_payload": "{plaintext}", "encryption_key": "{key}'
+    )
 
     initialisation_vector = Random.new().read(AES.block_size)
     iv_int = int(binascii.hexlify(initialisation_vector), 16)
