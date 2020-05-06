@@ -322,11 +322,11 @@ def encrypt_payload_and_update_message_using_dks(dks_endpoint, message):
 
 def get_escaped_json_string(json_string):
     try:
-        message_string = json.dumps(json.dumps(message))
+        escaped_string = json.dumps(json.dumps(json_string))
     except:
-        message_string = json.dumps(message)
+        escaped_string = json.dumps(json_string)
 
-    return message_string
+    return escaped_string
 
 
 def encrypt_payload_and_update_message_using_key(args, message):
