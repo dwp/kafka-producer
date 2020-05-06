@@ -387,7 +387,7 @@ def encrypt(key, plaintext):
 
 def get_message(event):
     message = json.loads(event["Records"][0]["Sns"]["Message"])
-    message_string = get_escaped_json_string(plaintext)
+    message_string = get_escaped_json_string(message)
     logger.debug(f'Message parsed from event", "message": "{message_string}')
 
     required_message_keys = ["job_id", "bucket", "fixture_data", "key"]
