@@ -136,8 +136,11 @@ logger = setup_logging(logger_level)
 
 
 def handler(event, context):
-    event_parsed = json.loads(event)
-    logger.info(f'Event received by lambda", "event": "{json.dumps(event_parsed)}')
+    try:
+        logger.info(f'Event received by lambda", "event_parsed": "{json.dumps(event)}')
+    except:
+        logger.info('Event received by lambda but could not be converted to json string", ' + \
+            f'"event": "{event}')
 
     message = get_message(event)
 
