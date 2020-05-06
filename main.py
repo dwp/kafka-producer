@@ -136,8 +136,10 @@ logger = setup_logging(logger_level)
 
 
 def handler(event, context):
+    event_string = get_escaped_json_string(event)
+
     try:
-        logger.info(f'Event received by lambda", "event_parsed": "{json.dumps(event)}')
+        logger.info(f'Event received by lambda", "event_parsed": "{event_string}')
     except:
         logger.info('Event received by lambda but could not be converted to json string", ' + \
             f'"event": "{event}')
@@ -231,8 +233,10 @@ def produce_kafka_messages(
                 db_name = message["db"]
             if "collection" in message:
                 collection_name = message["collection"]
+
+            data_string = get_escaped_json_string(data)
             logger.info(
-                f'Payload parsed", "payload": "{json.dumps(data)}", "dks_endpoint_full": "{dks_endpoint}", '
+                f'Payload parsed", "payload": "{data_string}", "dks_endpoint_full": "{dks_endpoint}", '
                 + f'"db_name": "{db_name}", "collection_name": "{collection_name}'
             )
         except json.JSONDecodeError as err:
@@ -264,7 +268,7 @@ def produce_kafka_messages(
 
         logger.info(
             f'Generating and sending messages", "s3_key": "{s3_key}", "topic_name": "{topic_name}", '
-            + f'"kafka_bootstrap_servers": "{args.kafka_bootstrap_servers}", "encrypted_payload": "{encrypted_payload}", '
+            + f'"kafka_bootstrap_servers": "{args.kafka_bootstrap_servers}", '
             + f'"randomise_kafka_key": "{randomise_kafka_key}", "message_volume": "{message_volume}", "dks_endpoint_full": "{dks_endpoint}'
         )
 
@@ -279,7 +283,7 @@ def produce_kafka_messages(
 
             logger.info(
                 f'Generating and sending messages", "s3_key": "{s3_key}", "topic_name": "{topic_name}", '
-                + f'"kafka_bootstrap_servers": "{args.kafka_bootstrap_servers}", "encrypted_payload": "{encrypted_payload}", '
+                + f'"kafka_bootstrap_servers": "{args.kafka_bootstrap_servers}", '
                 + f'"randomise_kafka_key": "{randomise_kafka_key}", "message_volume": "{message_volume}", "dks_endpoint_full": "{dks_endpoint}", '
                 + f'"key_bytes": "{key_bytes}", "message_count": "{message_count}'
             )
@@ -290,7 +294,7 @@ def produce_kafka_messages(
 
         logger.info(
             f'Messages sent", "s3_key": "{s3_key}", "topic_name": "{topic_name}", '
-            + f'"kafka_bootstrap_servers": "{args.kafka_bootstrap_servers}", "encrypted_payload": "{encrypted_payload}", '
+            + f'"kafka_bootstrap_servers": "{args.kafka_bootstrap_servers}", '
             + f'"randomise_kafka_key": "{randomise_kafka_key}", "message_volume": "{message_volume}", "dks_endpoint_full": "{dks_endpoint}'
         )
 
@@ -316,20 +320,31 @@ def encrypt_payload_and_update_message_using_dks(dks_endpoint, message):
     return encrypt_payload(encryption_key, message)
 
 
+def get_escaped_json_string(json_string):
+    try:
+        message_string = json.dumps(json.dumps(message))
+    except:
+        message_string = json.dumps(message)
+
+    return message_string
+
+
 def encrypt_payload_and_update_message_using_key(args, message):
+    message_string = get_escaped_json_string(message)
+
     logger.info(
-        f'Encrypting message using encryption key", "message": "{json.dumps(message)}'
+        f'Encrypting message using encryption key", "message": "{message_string}'
     )
 
     if args.encrypted_encryption_key:
         logger.info(
-            f'Adding encrypted dataKey to message", "message": "{json.dumps(message)}", "encrypted_encryption_key": "{args.encrypted_encryption_key}'
+            f'Adding encrypted dataKey to message", "message": "{message_string}", "encrypted_encryption_key": "{args.encrypted_encryption_key}'
         )
         message["encryption"]["encryptedEncryptionKey"] = args.encrypted_encryption_key
 
     if args.master_encryption_key_id:
         logger.info(
-            f'Adding master key id to message", "message": "{json.dumps(message)}", "master_encryption_key_id": "{args.master_encryption_key_id}'
+            f'Adding master key id to message", "message": "{message_string}", "master_encryption_key_id": "{args.master_encryption_key_id}'
         )
         message["encryption"]["keyEncryptionKeyId"] = args.master_encryption_key_id
 
@@ -343,7 +358,9 @@ def encrypt_payload(encryption_key, message):
         [iv, encrypted_record] = encrypt(encryption_key, record_string)
         message["dbObject"] = encrypted_record.decode("ascii")
         message["encryption"]["initialisationVector"] = iv.decode("ascii")
-        logger.info(f'Payload encrypted", "encrypted_message": "{json.dumps(message)}')
+
+        message_string = get_escaped_json_string(message)
+        logger.info(f'Payload encrypted", "encrypted_message": "{message_string}')
     except json.JSONDecodeError as err:
         logger.warning(
             f'Message contains invalid JSON data in dbObject so could not be encrypted", "error_message": "{err.msg}", "initialisation_vector": "PHONEYVECTOR'
@@ -354,8 +371,9 @@ def encrypt_payload(encryption_key, message):
 
 
 def encrypt(key, plaintext):
+    plaintext_string = get_escaped_json_string(plaintext)
     logger.info(
-        f'Encrypting payload using key", "unencrypted_payload": "{plaintext}", "encryption_key": "{key}'
+        f'Encrypting payload using key", "unencrypted_payload": "{plaintext_string}", "encryption_key": "{key}'
     )
 
     initialisation_vector = Random.new().read(AES.block_size)
@@ -369,7 +387,8 @@ def encrypt(key, plaintext):
 
 def get_message(event):
     message = json.loads(event["Records"][0]["Sns"]["Message"])
-    logger.debug(f'Message parsed from event", "message": "{json.dumps(message)}')
+    message_string = get_escaped_json_string(plaintext)
+    logger.debug(f'Message parsed from event", "message": "{message_string}')
 
     required_message_keys = ["job_id", "bucket", "fixture_data", "key"]
     missing_keys = []
