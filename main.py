@@ -139,10 +139,14 @@ def handler(event, context):
     event_string = get_escaped_json_string(event)
 
     try:
-        logger.info(f'Event received by lambda", "event_parsed": "{event_string}')
+        logger.info(
+            f'Event received by lambda", "event_parsed": {event_string}, "dynamo_db_table": "{dynamo_table_name}'
+        )
     except:
-        logger.info('Event received by lambda but could not be converted to json string", ' + \
-            f'"event": "{event}')
+        logger.info(
+            'Event received by lambda but could not be converted to json string", '
+            + f'"event": "{event}'
+        )
 
     message = get_message(event)
 
@@ -236,7 +240,7 @@ def produce_kafka_messages(
 
             data_string = get_escaped_json_string(data)
             logger.info(
-                f'Payload parsed", "payload": "{data_string}", "dks_endpoint_full": "{dks_endpoint}", '
+                f'Payload parsed", "payload": {data_string}, "dks_endpoint_full": "{dks_endpoint}", '
                 + f'"db_name": "{db_name}", "collection_name": "{collection_name}'
             )
         except json.JSONDecodeError as err:
@@ -333,12 +337,12 @@ def encrypt_payload_and_update_message_using_key(args, message):
     message_string = get_escaped_json_string(message)
 
     logger.info(
-        f'Encrypting message using encryption key", "message": "{message_string}'
+        f'Encrypting message using encryption key", "message_received": {message_string}, "dynamo_db_table": "{dynamo_table_name}'
     )
 
     if args.encrypted_encryption_key:
         logger.info(
-            f'Adding encrypted dataKey to message", "message": "{message_string}", "encrypted_encryption_key": "{args.encrypted_encryption_key}'
+            f'Adding encrypted dataKey to message", "message": {message_string}, "encrypted_encryption_key": "{args.encrypted_encryption_key}'
         )
         message["encryption"]["encryptedEncryptionKey"] = args.encrypted_encryption_key
 
@@ -360,7 +364,9 @@ def encrypt_payload(encryption_key, message):
         message["encryption"]["initialisationVector"] = iv.decode("ascii")
 
         message_string = get_escaped_json_string(message)
-        logger.info(f'Payload encrypted", "encrypted_message": "{message_string}')
+        logger.info(
+            f'Payload encrypted", "encrypted_message": {message_string}, "dynamo_db_table": "{dynamo_table_name}'
+        )
     except json.JSONDecodeError as err:
         logger.warning(
             f'Message contains invalid JSON data in dbObject so could not be encrypted", "error_message": "{err.msg}", "initialisation_vector": "PHONEYVECTOR'
@@ -373,7 +379,7 @@ def encrypt_payload(encryption_key, message):
 def encrypt(key, plaintext):
     plaintext_string = get_escaped_json_string(plaintext)
     logger.info(
-        f'Encrypting payload using key", "unencrypted_payload": "{plaintext_string}", "encryption_key": "{key}'
+        f'Encrypting payload using key", "unencrypted_payload": {plaintext_string}, "encryption_key": "{key}'
     )
 
     initialisation_vector = Random.new().read(AES.block_size)
@@ -388,7 +394,9 @@ def encrypt(key, plaintext):
 def get_message(event):
     message = json.loads(event["Records"][0]["Sns"]["Message"])
     message_string = get_escaped_json_string(message)
-    logger.debug(f'Message parsed from event", "message": "{message_string}')
+    logger.debug(
+        f'Message parsed from event", "message_received": {message_string}, "dynamo_db_table": "{dynamo_table_name}'
+    )
 
     required_message_keys = ["job_id", "bucket", "fixture_data", "key"]
     missing_keys = []
