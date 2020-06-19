@@ -2,7 +2,6 @@ name: Perform Python Format
 
 on: pull_request
 
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,5 +23,5 @@ jobs:
           git config --global user.email ${{ secrets.CI_GITHUB_EMAIL }}
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
           git checkout $GITHUB_HEAD_REF
-          git commit -am "fixup: Format Python code with Black"
+          git commit -am "Fixup: Format Python code with Black"
           git push

@@ -155,7 +155,7 @@ def handler(event, context):
         single_topic = True
 
     # Update dynamo db record
-    update_job_status(message["job_id"], "RUNNING")
+    update_job_status(message["job_id"], "RUNNING" )
 
     skip_encryption = (
         "skip_encryption" in message and message["skip_encryption"] in true_strings
