@@ -13,15 +13,14 @@ jobs:
     - name: Black format
       uses: Ahuge/black-action@v1.0.2
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         BLACK_ARGS: "."
 
     - name: Commit changes
       uses: EndBug/add-and-commit@v4
       with:
-        author_name: ${{ secrets.GITHUB_USERNAME }}
-        author_email: ${{ secrets.GITHUB_EMAIL }}
+        author_name: ${{ secrets.CI_GITHUB_USERNAME }}
+        author_email: ${{ secrets.CI_GITHUB_EMAIL }}
         message: "Python code formatted using Black"
         add: "*.py"
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
