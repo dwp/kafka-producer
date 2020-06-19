@@ -3,17 +3,18 @@ name: Perform Python Format
 on: pull_request
 
 jobs:
-  format-python:
-    name: Format with Black
+  black:
+    name: Lint with ESLint
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout repo
       uses: actions/checkout@v2
 
-    - name: Format source code
-      uses: cytopia/black
-      run: black
+    - name: Black format
+      uses: Ahuge/black-action@v1.0.2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        BLACK_ARGS: "."
 
     - name: Commit changes
       uses: EndBug/add-and-commit@v4
@@ -22,6 +23,5 @@ jobs:
         author_email: ${{ secrets.GITHUB_EMAIL }}
         message: "Python code formatted using Black"
         add: "*.py"
-        ref: ${{ github.head_ref }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
