@@ -4,9 +4,10 @@ on: pull_request
 
 jobs:
   black:
-    name: Lint with ESLint
+    name: Format with Python Black
     runs-on: ubuntu-latest
     steps:
+      -
     - name: Checkout repo
       uses: actions/checkout@v2
 
