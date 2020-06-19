@@ -29,6 +29,7 @@ dynamo_table_name = (
 true_strings = ["True", "true", "TRUE", "1"]
 logger_level = os.environ["LOG_LEVEL"] if "LOG_LEVEL" in os.environ else "ERROR"
 
+
 def setup_logging(logger_level):
     the_logger = logging.getLogger()
     for old_handler in the_logger.handlers:
