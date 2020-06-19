@@ -7,14 +7,11 @@ jobs:
     name: Format with Python Black
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v2
-
-    - name: Black format
-      uses: Ahuge/black-action@v1.0.2
+    - uses: actions/checkout@v1
+      name: Checkout
+    - uses: Ahuge/black-action@v1.0.2
       env:
         BLACK_ARGS: "."
-
     - name: Commit changes
       uses: EndBug/add-and-commit@v4
       with:
