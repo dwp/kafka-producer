@@ -2,21 +2,27 @@ name: Perform Python Format
 
 on: pull_request
 
+
 jobs:
-  black:
-    name: Format with Python Black
+  build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
-      name: Checkout
-    - uses: psf/black@master
-      run: black
-    - name: Commit changes
-      uses: EndBug/add-and-commit@v4
-      with:
-        author_name: ${{ secrets.CI_GITHUB_USERNAME }}
-        author_email: ${{ secrets.CI_GITHUB_EMAIL }}
-        message: "Python code formatted using Black"
-        add: "*.py"
-      env:
-        GITHUB_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+      - uses: actions/checkout@v1
+      - name: Set up Python 3.7
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.7
+      - name: Install Black
+        run: pip install black
+      - name: Run black --check .
+        run: black --check .
+      - name: If needed, commit black changes to the pull request
+        if: failure()
+        run: |
+          black .
+          git config --global user.name ${{ secrets.CI_GITHUB_USERNAME }}
+          git config --global user.email ${{ secrets.CI_GITHUB_EMAIL }}
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
+          git checkout $GITHUB_HEAD_REF
+          git commit -am "fixup: Format Python code with Black"
+          git push
