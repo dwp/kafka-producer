@@ -1,6 +1,16 @@
 name: Perform Python Format
 
-on: pull_request
+on:
+  pull_request:
+    paths-ignore:
+      - '.circleci/**'
+      - '.github/workflows/**'
+  push:
+    paths-ignore:
+      - '.circleci/**'
+      - '.github/workflows/**'
+    branches-ignore:
+      - master
 
 jobs:
   build:
