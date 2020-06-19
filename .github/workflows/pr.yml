@@ -1,0 +1,27 @@
+name: Perform Python Format
+
+on: pull_request
+
+jobs:
+  format-python:
+    name: Format with Black
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v2
+
+    - name: Format source code
+      uses: cytopia/black
+      run: black
+
+    - name: Commit changes
+      uses: EndBug/add-and-commit@v4
+      with:
+        author_name: ${{ secrets.GITHUB_USERNAME }}
+        author_email: ${{ secrets.GITHUB_EMAIL }}
+        message: "Python code formatted using Black"
+        add: "*.py"
+        ref: ${{ github.head_ref }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
