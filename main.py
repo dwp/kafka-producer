@@ -165,6 +165,11 @@ def handler(event, context):
         if "kafka_random_key" not in message
         else (message["kafka_random_key"].lower() == "true")
     )
+    topic_prefix = (
+        ""
+        if "topic_prefix" not in message
+        else (message["topic_prefix"])
+    )
 
     try:
         produce_kafka_messages(
@@ -172,11 +177,13 @@ def handler(event, context):
             message["job_id"],
             message["fixture_data"],
             message["key"],
+            message["key"],
             skip_encryption,
             single_topic,
             args,
             produce_x_number_of_messages,
             kafka_random_key,
+            topic_prefix,
         )
     except Exception as e:
         logger.error(
@@ -208,6 +215,7 @@ def produce_kafka_messages(
     args,
     message_volume,
     randomise_kafka_key,
+    topic_prefix,
 ):
     # Process each fixture data dir, sending each file in it to kafka as a payload
     producer = KafkaProducer(
@@ -261,7 +269,6 @@ def produce_kafka_messages(
                     f'Payload contains invalid JSON data so could be encrypted", "payload": "{payload}", "error_message": "{err.msg}'
                 )
 
-        topic_prefix = message["topic_prefix"]
         if single_topic:
             topic_name = f"{topic_prefix}{job_id}"
         else:
