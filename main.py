@@ -261,10 +261,11 @@ def produce_kafka_messages(
                     f'Payload contains invalid JSON data so could be encrypted", "payload": "{payload}", "error_message": "{err.msg}'
                 )
 
+        topic_prefix = message["topic_prefix"]
         if single_topic:
-            topic_name = f"{message["topic_prefix"]}{job_id}"
+            topic_name = f"{topic_prefix}{job_id}"
         else:
-            topic_name = f"{message["topic_prefix"]}{job_id}_{db_name}.{collection_name}"
+            topic_name = f"{topic_prefix}{job_id}_{db_name}.{collection_name}"
 
         logger.info(
             f'Generating and sending messages", "s3_key": "{s3_key}", "topic_name": "{topic_name}", '
