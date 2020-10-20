@@ -52,7 +52,7 @@ You can test the aws lambda using a test method with a json like follows:
         "MessageId": "03e38856-2185-5112-9c3c-ddd4e89c9bd4",
         "TopicArn": "arn:aws:sns:eu-west-2:1234567890:ingest-load-fixture-data",
         "Subject": "None",
-        "Message": "{\"job_id\": \"db.some-id\", \"bucket\": \"123456789123456789\", \"key\": \"aaaa1111-abcd-4567-1234-1234567890a\"\"fixture_data\": [\"functional-tests/single_valid_ucfs_business_data_event.json\"]}",
+        "Message": "{\"job_id\": \"db.some-id\", ,\"topic_prefix\": \"db.\", \"bucket\": \"123456789123456789\", \"key\": \"aaaa1111-abcd-4567-1234-1234567890a\"\"fixture_data\": [\"functional-tests/single_valid_ucfs_business_data_event.json\"]}",
         "Timestamp": "2019-06-18T11:11:21.777Z",
         "MessageAttributes": {}
       }
