@@ -165,11 +165,7 @@ def handler(event, context):
         if "kafka_random_key" not in message
         else (message["kafka_random_key"].lower() == "true")
     )
-    topic_prefix = (
-        ""
-        if "topic_prefix" not in message
-        else (message["topic_prefix"])
-    )
+    topic_prefix = "" if "topic_prefix" not in message else (message["topic_prefix"])
 
     try:
         produce_kafka_messages(
