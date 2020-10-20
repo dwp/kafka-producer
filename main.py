@@ -68,7 +68,6 @@ def get_parameters():
     parser.add_argument("--aws-region", default="eu-west-2")
     parser.add_argument("--kafka-bootstrap-servers", default=argparse.SUPPRESS)
     parser.add_argument("--ssl-broker", default="True")
-    parser.add_argument("--topic-prefix", default="NOT_SET")
     parser.add_argument("--dks-endpoint", default="NOT_SET")
     parser.add_argument("--encryption-key", default="NOT_SET")
     parser.add_argument("--encrypted-encryption-key", default="NOT_SET")
@@ -90,9 +89,6 @@ def get_parameters():
 
     if "SSL_BROKER" in os.environ:
         _args.ssl_broker = os.environ["SSL_BROKER"]
-
-    if "TOPIC_PREFIX" in os.environ:
-        _args.topic_prefix = os.environ["TOPIC_PREFIX"]
 
     if "DKS_ENDPOINT" in os.environ:
         _args.dks_endpoint = os.environ["DKS_ENDPOINT"]
@@ -266,9 +262,9 @@ def produce_kafka_messages(
                 )
 
         if single_topic:
-            topic_name = f"{args.topic_prefix}{job_id}"
+            topic_name = f"{message["topic_prefix"]}{job_id}"
         else:
-            topic_name = f"{args.topic_prefix}{job_id}_{db_name}.{collection_name}"
+            topic_name = f"{message["topic_prefix"]}{job_id}_{db_name}.{collection_name}"
 
         logger.info(
             f'Generating and sending messages", "s3_key": "{s3_key}", "topic_name": "{topic_name}", '
