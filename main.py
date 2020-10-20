@@ -177,7 +177,6 @@ def handler(event, context):
             message["job_id"],
             message["fixture_data"],
             message["key"],
-            message["key"],
             skip_encryption,
             single_topic,
             args,
