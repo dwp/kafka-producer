@@ -1,3 +1,5 @@
+# DO NOT USE THIS REPO - MIGRATED TO GITLAB
+
 # kafka-producer
 Converts files in S3 to Kafka messages
 
